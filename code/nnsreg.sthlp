@@ -253,7 +253,7 @@ Standard errors for {cmd:method(ols)} are conditional on the data-derived knots.
 Eric A. Booth{break}
 Texas 2036{break}
 eric.a.booth@gmail.com{break}
-https://github.com/ericbooth/NNS-stata-public
+https://github.com/ericabooth/NNS-stata-public
 
 {title:References}
 

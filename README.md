@@ -19,7 +19,7 @@ This makes `nnsreg` useful when the analyst needs more than a smooth curve: for 
 From Stata:
 
 ```stata
-net install nnsreg, from("https://raw.githubusercontent.com/ericbooth/NNS-stata-public/main/github") replace
+net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
 ```
 
 For local development from this folder:

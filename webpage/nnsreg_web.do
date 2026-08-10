@@ -108,6 +108,6 @@ webdoc put <p><strong>What this display simplifies.</strong> To stay fast in a b
 webdoc put <div style="max-width:100%;overflow:hidden"><iframe src="nnsreg_interactive.html" style="width:100%;height:900px;border:1px solid #d8dee8;border-radius:8px;"></iframe></div>
 
 webdoc put <h2>Install</h2>
-webdoc put <pre><code>net install nnsreg, from("https://raw.githubusercontent.com/ericbooth/NNS-stata-public/main/github") replace</code></pre>
+webdoc put <pre><code>net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace</code></pre>
 
 webdoc close

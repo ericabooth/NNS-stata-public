@@ -1,0 +1,3 @@
+3db5f8622c56087f6950155e14cf74fc85db0663  manuscript/table_model_diagnostics.csv
+2044faa1e6b30f33ba232760f8e3fa46a8e19a27  manuscript/table_mc_summary.csv
+a25a7618113f6f0b6748a4ed69483fb2c2552a4a  manuscript/table_postest.csv

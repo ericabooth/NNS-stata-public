@@ -1,0 +1,134 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{viole_nawrocki_2013}
+\citation{stata_2025}
+\citation{orsini_greenland_2011}
+\citation{royston_2013_mcp}
+\@writefile{toc}{\contentsline {chapter}{nnsreg: Reportable segment slopes for nonlinear relationships in Stata\dotfill  \newline  \hbox {\hskip 0pt}\dotfill  E. A. Booth}{1}{chapter.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1.1}\protected@file@percent }
+\citation{friedman_1991}
+\citation{royston_altman_1994}
+\citation{cattaneo_etal_2024_aer,cattaneo_etal_2025_binsreg}
+\citation{muggeo_2003,kim_etal_2000}
+\citation{viole_nawrocki_2013}
+\citation{viole_nawrocki_2012_cdf,viole_nawrocki_2012_corr,nawrocki_viole_2024}
+\citation{vinod_viole_2018_clusters}
+\citation{hayfield_racine_2008}
+\citation{vinod_viole_2018_segments}
+\citation{viole_2026_nns}
+\citation{jann_2014}
+\citation{newson_2006}
+\citation{bawa_1975,fishburn_1977}
+\citation{viole_nawrocki_2012_cdf}
+\citation{viole_nawrocki_2012_corr}
+\@writefile{toc}{\contentsline {section}{\numberline {2}The NNS regression approach}{3}{section.1.2}\protected@file@percent }
+\newlabel{sec:method}{{2}{3}{The NNS regression approach}{section.1.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Partial moments and recursive partitioning}{3}{subsection.1.2.1}\protected@file@percent }
+\citation{vinod_viole_2018_segments}
+\citation{ruppert_wand_carroll_2003}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}From regression points to a linear spline}{4}{subsection.1.2.2}\protected@file@percent }
+\citation{muggeo_2003,hansen_2017_kink}
+\citation{viole_2026_nns}
+\citation{vinod_viole_2018_segments}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Relationship to the R NNS package}{5}{subsection.1.2.3}\protected@file@percent }
+\newlabel{sec:rpackage}{{2.3}{5}{Relationship to the R NNS package}{subsection.1.2.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}The nnsreg command}{6}{section.1.3}\protected@file@percent }
+\newlabel{sec:command}{{3}{6}{The nnsreg command}{section.1.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Syntax}{6}{subsection.1.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Options}{6}{subsection.1.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Stored results}{7}{subsection.1.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Simulated comparisons}{9}{section.1.4}\protected@file@percent }
+\newlabel{sec:sims}{{4}{9}{Simulated comparisons}{section.1.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Design: three known curves, one seed, and 100 replications}{9}{subsection.1.4.1}\protected@file@percent }
+\citation{vinod_viole_2018_clusters}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Example 1: smoothers lead on a smooth S-curve; the spline stays close}{10}{subsection.1.4.2}\protected@file@percent }
+\newlabel{sec:edu}{{4.2}{10}{Example 1: smoothers lead on a smooth S-curve; the spline stays close}{subsection.1.4.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {\kern \digitwidth 1}{\ignorespaces Single-run diagnostics from the canonical simulated datasets. ``Observed RMSE'' scores each fit against the noisy outcome; ``true RMSE'' scores it against the known generating curve. Both RMSE columns divide by $N$ (a root mean squared deviation), which differs slightly from \texttt  {e(rmse)}, whose divisor is the residual degrees of freedom. All three fixed-seed draws flatter the NNS OLS spline relative to its replication average; section~\ref {sec:mc} reports the averages across 100 replications.}}{11}{subsection.1.4.1}\protected@file@percent }
+\newlabel{tab:diag}{{1}{11}{Design: three known curves, one seed, and 100 replications}{subsection.1.4.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 1}{\ignorespaces Education example, one fitted method per panel (orange) against the same simulated data (gray dots) and true curve (black). The linear model misses the plateau. The kernel smoother and the NNS OLS spline both recover the S-shape, with true-curve RMSE 0.923 and 0.784 in this draw; the connected NNS fit is more jagged because it interpolates regression points.}}{12}{subsection.1.4.2}\protected@file@percent }
+\newlabel{fig:edufits}{{1}{12}{Example 1: smoothers lead on a smooth S-curve; the spline stays close}{subsection.1.4.2}{}}
+\citation{jann_2014}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 2}{\ignorespaces Stored slope-change components for the education example, labeled with knot locations from \texttt  {e(knots)}. The 6.5--6.7 range contains no observations, so its fitted movement is interpolation across a gap. Over the supported interior, positive slope changes where the curve is rising are offset by negative changes higher up the spending range, producing the plateau.}}{14}{subsection.1.4.2}\protected@file@percent }
+\newlabel{fig:educoef}{{2}{14}{Example 1: smoothers lead on a smooth S-curve; the spline stays close}{subsection.1.4.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Example 2: on a threshold curve, the estimated knots land near the true change point}{14}{subsection.1.4.3}\protected@file@percent }
+\newlabel{sec:water}{{4.3}{14}{Example 2: on a threshold curve, the estimated knots land near the true change point}{subsection.1.4.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 3}{\ignorespaces Water example, one fitted method per panel. The true curve is flat until pipe age 35 and rises afterward. The kernel smoother and the NNS OLS spline both recover the shape (true-curve RMSE 0.865 and 0.372); the linear fit averages the flat and rising regimes and represents neither.}}{15}{subsection.1.4.3}\protected@file@percent }
+\newlabel{fig:waterfits}{{3}{15}{Example 2: on a threshold curve, the estimated knots land near the true change point}{subsection.1.4.3}{}}
+\citation{vinod_viole_2018_clusters}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 4}{\ignorespaces The NNS OLS fit for the water example with its interior knots (dashed gray lines, from \texttt  {e(knots)}) and the true change point at age 35 (navy line). Several knots land near the true kink, and the fitted curve is flat to the left of it and rising to the right, matching the slope-contrast tests in the text.}}{16}{subsection.1.4.3}\protected@file@percent }
+\newlabel{fig:waterknots}{{4}{16}{Example 2: on a threshold curve, the estimated knots land near the true change point}{subsection.1.4.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Example 3: clustered support favors the NNS least-squares fit}{16}{subsection.1.4.4}\protected@file@percent }
+\newlabel{sec:cluster}{{4.4}{16}{Example 3: clustered support favors the NNS least-squares fit}{subsection.1.4.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 5}{\ignorespaces Clustered example, one fitted method per panel. Observations concentrate in three regions, with a sharp dip in the true curve near the middle cluster. In this draw the kernel smoother and the NNS OLS spline are nearly tied (true-curve RMSE 0.484 and 0.492); the Monte Carlo study shows that across repeated draws the segmented fit is more accurate than the kernel in this design (table~\ref {tab:mc}).}}{17}{subsection.1.4.4}\protected@file@percent }
+\newlabel{fig:clusterfits}{{5}{17}{Example 3: clustered support favors the NNS least-squares fit}{subsection.1.4.4}{}}
+\citation{vinod_viole_2018_clusters}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}The Monte Carlo study: smoothers lead on smooth curves; NNS OLS is steadier on clustered support}{18}{subsection.1.4.5}\protected@file@percent }
+\newlabel{sec:mc}{{4.5}{18}{The Monte Carlo study: smoothers lead on smooth curves; NNS OLS is steadier on clustered support}{subsection.1.4.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {\kern \digitwidth 2}{\ignorespaces Monte Carlo summary across 100 replications per design. Cells show the mean of RMSE against the true curve, its standard deviation across replications, and the share of replications in which the model beats \texttt  {npregress kernel} on that metric. The \texttt  {npregress} estimators lead both smooth designs; in the clustered design the NNS OLS fits trade a little average accuracy for much lower between-replication variability.}}{18}{subsection.1.4.5}\protected@file@percent }
+\newlabel{tab:mc}{{2}{18}{The Monte Carlo study: smoothers lead on smooth curves; NNS OLS is steadier on clustered support}{subsection.1.4.5}{}}
+\citation{vinod_viole_2018_clusters}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 6}{\ignorespaces Distribution of true-curve RMSE across 100 Monte Carlo replications, by design and method (linear regression omitted; its values sit far above every panel and appear in table~\ref {tab:mc}). The two \texttt  {npregress} estimators are most accurate in the smooth designs. In the clustered design \texttt  {npregress series} has the lowest average error but the widest spread, while the NNS OLS fits are nearly as accurate on average and have much narrower distributions. The vertical scale differs by design, and RMSE is in the outcome's units.}}{19}{subsection.1.4.5}\protected@file@percent }
+\newlabel{fig:mc}{{6}{19}{The Monte Carlo study: smoothers lead on smooth curves; NNS OLS is steadier on clustered support}{subsection.1.4.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {\kern \digitwidth 3}{\ignorespaces Empirical coverage of the nominal 95\% conditional interval for the terminal-segment slope, across 100 replications per design. The target is the true secant slope of the generating curve over the fitted terminal segment.}}{20}{subsection.1.4.5}\protected@file@percent }
+\newlabel{tab:coverage}{{3}{20}{The Monte Carlo study: smoothers lead on smooth curves; NNS OLS is steadier on clustered support}{subsection.1.4.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}The reported shapes survive order and center changes; extra depth tracks noise}{20}{subsection.1.4.6}\protected@file@percent }
+\newlabel{sec:sens}{{4.6}{20}{The reported shapes survive order and center changes; extra depth tracks noise}{subsection.1.4.6}{}}
+\citation{silverman_1985}
+\citation{fan_gijbels_1996}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 7}{\ignorespaces Education example: connected NNS fits across order and center choices. The S-shape and upper plateau appear in every variant, though the \texttt  {order(3)} mean fit adds local movement near spending of 6.5 and 16. The shared shape is the stability pattern that supports reporting the plateau.}}{21}{subsection.1.4.6}\protected@file@percent }
+\newlabel{fig:edusens}{{7}{21}{The reported shapes survive order and center changes; extra depth tracks noise}{subsection.1.4.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}A real-data illustration}{21}{section.1.5}\protected@file@percent }
+\newlabel{sec:real}{{5}{21}{A real-data illustration}{section.1.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}On the impact trough, the segmented fit tracks the smoothers}{21}{subsection.1.5.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 8}{\ignorespaces Water example: connected NNS fits across order and center choices. Every variant shows the flat region below age 35 and the rise after it; \texttt  {order(2)} is smoother, and \texttt  {order(3)} allows more local movement through the flat region and near the threshold.}}{22}{subsection.1.4.6}\protected@file@percent }
+\newlabel{fig:watersens}{{8}{22}{The reported shapes survive order and center changes; extra depth tracks noise}{subsection.1.4.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}The knots concentrate in the impact trough}{22}{subsection.1.5.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 9}{\ignorespaces Clustered example: NNS OLS fits at orders 3 through 5 against the kernel benchmark. Orders 3 and 4 recover the peak, dip, and recovery; \texttt  {order(5)} adds movement that improves observed fit but drifts from the true curve, the overfitting pattern quantified in table~\ref {tab:diag}.}}{23}{subsection.1.4.6}\protected@file@percent }
+\newlabel{fig:clustersens}{{9}{23}{The reported shapes survive order and center changes; extra depth tracks noise}{subsection.1.4.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Out of sample, the segmented fit and kernel have similar mean error}{23}{subsection.1.5.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 10}{\ignorespaces Motorcycle data, one fitted method per panel (dark line) against the 133 readings (gray dots). The linear fit cannot represent a curve that reverses; the kernel smoother and the NNS OLS spline both trace the flat run, the impact trough, and the rebound (in-sample RMSE 21.74 and 21.47).}}{24}{subsection.1.5.1}\protected@file@percent }
+\newlabel{fig:motofits}{{10}{24}{On the impact trough, the segmented fit tracks the smoothers}{subsection.1.5.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {\kern \digitwidth 11}{\ignorespaces Motorcycle segment diagnostic. The upper panel shows the NNS OLS fit and its 13 interior knots. The lower panel shows the slope over each range, a robust 95\% interval conditional on the selected knots, and the number of observations in the range. Dashed gray ranges contain fewer than five observations; one contains none and represents interpolation between knots. Large slopes and dense knot placement flag ranges for follow-up, not estimated thresholds.}}{25}{subsection.1.5.2}\protected@file@percent }
+\newlabel{fig:motoknots}{{11}{25}{The knots concentrate in the impact trough}{subsection.1.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {\kern \digitwidth 4}{\ignorespaces Motorcycle data: fit quality in sample and out of sample. In-sample RMSE is against the observed acceleration; held-out RMSE is the mean (and standard deviation) across 20 repeats of five-fold cross-validation, lower is better. The endpoint rule means that each repeat scores 131 of 133 readings. The restricted-cubic-spline basis uses five percentile knots fixed from the full regressor distribution before the folds. \texttt  {npregress series} is scored with \texttt  {predict, tolerance(100)}; \texttt  {nnsreg} rebuilds the basis from \texttt  {e(knots)} and scores held-out rows directly.}}{26}{subsection.1.5.3}\protected@file@percent }
+\newlabel{tab:moto}{{4}{26}{Out of sample, the segmented fit and kernel have similar mean error}{subsection.1.5.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Practical guidance}{27}{section.1.6}\protected@file@percent }
+\newlabel{sec:practice}{{6}{27}{Practical guidance}{section.1.6}{}}
+\citation{viole_nawrocki_2013}
+\citation{viole_2026_nns}
+\@writefile{lot}{\contentsline {table}{\numberline {\kern \digitwidth 5}{\ignorespaces What each command reports. \texttt  {nnsreg} scores held-out observations from stored results and derives its knots from the NNS partition. \texttt  {npregress series} scores new rows when \texttt  {tolerance()} or \texttt  {atsample} is specified. \texttt  {mkspline} uses locations supplied by the user or placed by rank.}}{28}{section.1.6}\protected@file@percent }
+\newlabel{tab:features}{{5}{28}{Practical guidance}{section.1.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{28}{section.1.7}\protected@file@percent }
+\newlabel{sec:conclusion}{{7}{28}{Conclusion}{section.1.7}{}}
+\bibstyle{sj}
+\bibdata{nnsreg}
+\bibcite{bawa_1975}{{1}{1975}{{Bawa}}{{}}}
+\bibcite{cattaneo_etal_2024_aer}{{2}{2024}{{Cattaneo et~al.\spacefactor \@m {}}}{{Cattaneo, Crump, Farrell, and Feng}}}
+\bibcite{cattaneo_etal_2025_binsreg}{{3}{2025}{{Cattaneo et~al.\spacefactor \@m {}}}{{Cattaneo, Crump, Farrell, and Feng}}}
+\bibcite{fan_gijbels_1996}{{4}{1996}{{Fan and Gijbels}}{{}}}
+\bibcite{fishburn_1977}{{5}{1977}{{Fishburn}}{{}}}
+\bibcite{friedman_1991}{{6}{1991}{{Friedman}}{{}}}
+\bibcite{hansen_2017_kink}{{7}{2017}{{Hansen}}{{}}}
+\bibcite{hayfield_racine_2008}{{8}{2008}{{Hayfield and Racine}}{{}}}
+\bibcite{jann_2014}{{9}{2014}{{Jann}}{{}}}
+\bibcite{kim_etal_2000}{{10}{2000}{{Kim et~al.\spacefactor \@m {}}}{{Kim, Fay, Feuer, and Midthune}}}
+\bibcite{muggeo_2003}{{11}{2003}{{Muggeo}}{{}}}
+\bibcite{nawrocki_viole_2024}{{12}{2024}{{Nawrocki and Viole}}{{}}}
+\bibcite{newson_2006}{{13}{2006}{{Newson}}{{}}}
+\bibcite{orsini_greenland_2011}{{14}{2011}{{Orsini and Greenland}}{{}}}
+\bibcite{royston_2013_mcp}{{15}{2013}{{Royston}}{{}}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Acknowledgments}{29}{section.1.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}References}{29}{section.1.9}\protected@file@percent }
+\bibcite{royston_altman_1994}{{16}{1994}{{Royston and Altman}}{{}}}
+\bibcite{ruppert_wand_carroll_2003}{{17}{2003}{{Ruppert et~al.\spacefactor \@m {}}}{{Ruppert, Wand, and Carroll}}}
+\bibcite{silverman_1985}{{18}{1985}{{Silverman}}{{}}}
+\bibcite{stata_2025}{{19}{2025}{{StataCorp}}{{}}}
+\bibcite{vinod_viole_2018_segments}{{20}{2018{a}}{{Vinod and Viole}}{{}}}
+\bibcite{vinod_viole_2018_clusters}{{21}{2018{b}}{{Vinod and Viole}}{{}}}
+\bibcite{viole_2026_nns}{{22}{2026}{{Viole}}{{}}}
+\bibcite{viole_nawrocki_2012_cdf}{{23}{2012{a}}{{Viole and Nawrocki}}{{}}}
+\bibcite{viole_nawrocki_2012_corr}{{24}{2012{b}}{{Viole and Nawrocki}}{{}}}
+\bibcite{viole_nawrocki_2013}{{25}{2013}{{Viole and Nawrocki}}{{}}}
+\gdef \@abspage@last{30}

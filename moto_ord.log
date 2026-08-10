@@ -1,0 +1,77 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do /private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c7-ee224813b
+> 9b1/scratchpad/moto_ord.do 
+
+. clear all
+
+. adopath + "code"
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+  [7]              "code"
+
+. webuse motorcycle, clear
+(Motorcycle data from Fan & Gijbels (1996))
+
+. foreach o in 2 3 4 {
+  2.     foreach m in connect ols {
+  3.         quietly nnsreg accel time, order(`o') method(`m') noplot
+  4.         tempvar f
+  5.         quietly predict double `f'
+  6.         quietly gen double e2 = (accel-`f')^2
+  7.         quietly summ e2, meanonly
+  8.         di "order(`o') method(`m'): nknots=" `: word count `e(knots)'' "  
+> rmse=" %6.3f sqrt(r(mean)) "  r2=" %5.3f e(r2)
+  9.         drop e2
+ 10.     }
+ 11. }
+order(2) method(connect): nknots=5  rmse=37.797  r2=0.384
+order(2) method(ols): nknots=5  rmse=24.628  r2=0.738
+order(3) method(connect): nknots=13  rmse=30.638  r2=0.595
+order(3) method(ols): nknots=13  rmse=21.470  r2=0.801
+order(4) method(connect): nknots=33  rmse=28.133  r2=0.658
+order(4) method(ols): nknots=33  rmse=20.188  r2=0.824
+
+. 
+end of do-file

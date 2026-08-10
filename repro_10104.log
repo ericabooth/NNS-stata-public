@@ -1,0 +1,311 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.boot
+> h@texas2036.org/Shared drives/Data and Research Team//_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do /private/tmp/claude-502/-Users-ericbooth/35857c95-abf6-4f12-b302-1e3a81a4f
+> 786/scratchpad/repro_10104.do 
+
+. // Repro test: water design, seed 10104 (rep 35) previously produced a
+. // missing NNS coefficient in method(connect). After the 1.2.1 guard, both
+. // methods must fit and post complete coefficient vectors.
+. clear all
+
+. adopath + "code"
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.boot
+> h@texas2036.org/Shared drives/Data and Research Team//_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+  [7]              "code"
+
+. do "examples/simulated_data.do"
+
+. *! version 1.3.0  05jul2026
+. *! Simulated data generator for the nnsreg Stata Journal manuscript.
+. *! Defines nns_simdata, a reusable data-generating program, and writes the
+. *! three canonical example datasets to examples/.  The Monte Carlo study in
+. *! examples/test_nnsreg.do calls nns_simdata with fresh seeds, so the single
+. *! canonical datasets and the replication draws come from identical code.
+. clear all
+
+. 
+. capture program drop nns_simdata
+
+. program define nns_simdata
+  1.     // Generates one simulated example dataset in memory (does not save).
+.     // design(education|water|clustered) picks the data-generating process.
+.     // seed(#) makes the draw reproducible; omit to continue the RNG stream.
+.     syntax, DESign(string) [SEED(integer -1)]
+  2. 
+.     if !inlist("`design'", "education", "water", "clustered") {
+  3.         di as error "design() must be education, water, or clustered"
+  4.         exit 198
+  5.     }
+  6.     if `seed' >= 0 set seed `seed'
+  7.     clear
+  8. 
+.     if "`design'" == "education" {
+  9.         // Smooth S-curve with diminishing returns: flat at low spending,
+.         // rising through the middle, plateauing near the top.
+.         // True curve: 40 + 45 / (1 + exp(-0.8*(spend - 11))), noise sd = 4.
+.         set obs 250
+ 10.         gen district_id = _n
+ 11.         gen spend_pupil = 5 + 15 * runiform()
+ 12.         gen true_staar = 40 + 45 / (1 + exp(-0.8 * (spend_pupil - 11)))
+ 13.         gen staar_pass = true_staar + rnormal(0, 4)
+ 14.         replace staar_pass = 100 if staar_pass > 100
+ 15.         replace staar_pass = 0 if staar_pass < 0
+ 16.         label variable spend_pupil "Per-Pupil Operational Spending ($ Thou
+> sands)"
+ 17.         label variable staar_pass "STAAR Math Passing Rate (%)"
+ 18.         label variable true_staar "True passing-rate curve (simulation)"
+ 19.         label data "Texas School District Operational Funding and Achievem
+> ent (Simulated)"
+ 20.     }
+ 21.     else if "`design'" == "water" {
+ 22.         // Threshold behavior: loss rate is flat below a pipe age of 35 ye
+> ars,
+.         // then rises with a linear plus quadratic term.  Noise sd = 2.5.
+.         // The kink at age 35 is the "true change point" referenced in the
+.         // manuscript's knot-location figure.
+.         set obs 300
+ 23.         gen system_id = _n
+ 24.         gen pipe_age = 80 * runiform()
+ 25.         gen true_loss = 8 if pipe_age <= 35
+ 26.         replace true_loss = 8 + 0.4 * (pipe_age - 35) + 0.01 * (pipe_age -
+>  35)^2 ///
+>             if pipe_age > 35
+ 27.         gen water_loss = true_loss + rnormal(0, 2.5)
+ 28.         replace water_loss = 100 if water_loss > 100
+ 29.         replace water_loss = 0 if water_loss < 0
+ 30.         label variable pipe_age "Average Water Pipe Age (Years)"
+ 31.         label variable water_loss "Annual Water Loss Rate (%)"
+ 32.         label variable true_loss "True loss-rate curve (simulation)"
+ 33.         label data "Texas Municipal Water Infrastructure and Water Loss (S
+> imulated)"
+ 34.     }
+ 35.     else {
+ 36.         // Clustered support with sharp local features: observations are
+.         // concentrated in three regions (centers 22, 36, 58) holding a local
+.         // peak, a sharp dip, and a partial recovery.  This design mirrors th
+> e
+.         // cluster benchmarks in Vinod and Viole (2018), where partition-base
+> d
+.         // fits are expected to have an advantage over a global bandwidth.
+.         set obs 260
+ 37.         gen unit_id = _n
+ 38.         gen mix = runiform()
+ 39.         gen cluster_score = cond(mix < .45, rnormal(22, 3), ///
+>             cond(mix < .75, rnormal(36, 2.2), rnormal(58, 4)))
+ 40.         replace cluster_score = max(5, min(70, cluster_score))
+ 41.         gen true_index = 18 + .18 * cluster_score ///
+>             + 10 * exp(-((cluster_score - 24)^2) / 35) ///
+>             - 16 * exp(-((cluster_score - 35)^2) / 18) ///
+>             + 8 * exp(-((cluster_score - 58)^2) / 50)
+ 42.         gen outcome_index = true_index + rnormal(0, 1.2)
+ 43.         drop mix
+ 44.         label variable cluster_score "Clustered Index Score"
+ 45.         label variable outcome_index "Outcome Index"
+ 46.         label variable true_index "True outcome curve (simulation)"
+ 47.         label data "Clustered peak/dip benchmark data (Simulated)"
+ 48.     }
+ 49. end
+
+. 
+. // Canonical example datasets used in the manuscript (fixed seeds).
+. nns_simdata, design(education) seed(2036)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+
+. save "examples/texas_education.dta", replace
+file examples/texas_education.dta saved
+
+. 
+. nns_simdata, design(water) seed(2037)
+Number of observations (_N) was 0, now 300.
+(149 missing values generated)
+(149 real changes made)
+(0 real changes made)
+(0 real changes made)
+
+. save "examples/texas_water.dta", replace
+file examples/texas_water.dta saved
+
+. 
+. nns_simdata, design(clustered) seed(2038)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+
+. save "examples/clustered_peak_dip.dta", replace
+file examples/clustered_peak_dip.dta saved
+
+. 
+. di "Data simulation complete. Files saved in examples/ subfolder."
+Data simulation complete. Files saved in examples/ subfolder.
+
+. 
+end of do-file
+
+. 
+. nns_simdata, design(water) seed(10104)
+Number of observations (_N) was 0, now 300.
+(155 missing values generated)
+(155 real changes made)
+(0 real changes made)
+(0 real changes made)
+
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9276
+Root MSE:             3.0066
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .1123562   .1891858     0.59   0.553    -.2600006     .484713
+       knot1 |  -44.20474   12.55412    -3.52   0.000    -68.91385   -19.49563
+       knot2 |    44.0985   12.44332     3.54   0.000     19.60748    68.58952
+       knot3 |    .900846    .185214     4.86   0.000     .5363066    1.265385
+       knot4 |  -2.412938   .6277006    -3.84   0.000    -3.648382   -1.177494
+       knot5 |   1.113694   1.092466     1.02   0.309    -1.036504    3.263891
+       knot6 |   1.525297    .922781     1.65   0.099    -.2909266     3.34152
+       knot7 |  -.4552367   .4024423    -1.13   0.259    -1.247326    .3368529
+       knot8 |   .4792299    .146893     3.26   0.001     .1901142    .7683456
+       knot9 |  -.0477733   .1733232    -0.28   0.783    -.3889092    .2933627
+       _cons |   9.033689     .96491     9.36   0.000     7.134547    10.93283
+------------------------------------------------------------------------------
+
+. matrix b = e(b)
+
+. assert !matmissing(b)
+
+. di "connect OK, knots: `e(knots)'"
+connect OK, knots: 8.875839442014694    8.970136697831991   27.394957244396210 
+>   35.068958959271832   38.019570212210382   40.970181465148926   45.410334384
+> 802617   57.006872631254652   69.167032839646978
+
+. nnsreg water_loss pipe_age, order(3) method(ols) partition(xy) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9484
+Root MSE:             2.5809
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.1300286    .162399    -0.80   0.424    -.4496635    .1896062
+       knot1 |   7.616677   10.77659     0.71   0.480    -13.59387    28.82723
+       knot2 |  -7.468805   10.68147    -0.70   0.485    -28.49215    13.55454
+       knot3 |   .0234391   .1589896     0.15   0.883    -.2894852    .3363634
+       knot4 |   .1040364   .5388245     0.19   0.847    -.9564815    1.164554
+       knot5 |   .2095223   .9377835     0.22   0.823    -1.636229    2.055274
+       knot6 |   .1854768   .7921245     0.23   0.815    -1.373588    1.744541
+       knot7 |   .1990245   .3454606     0.58   0.565    -.4809132    .8789622
+       knot8 |   .2676156   .1260944     2.12   0.035     .0194358    .5157955
+       knot9 |   .2010034   .1487824     1.35   0.178    -.0918311     .493838
+       _cons |   8.522497   .8282885    10.29   0.000     6.892254    10.15274
+------------------------------------------------------------------------------
+
+. matrix b2 = e(b)
+
+. assert !matmissing(b2)
+
+. di "ols OK"
+ols OK
+
+. 
+. // Also re-check the three canonical datasets still fit identically.
+. use "examples/texas_water.dta", clear
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9385
+Root MSE:             2.7730
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .1508916   .1705692     0.88   0.377    -.1848239     .486607
+       knot1 |  -7.817108   2.179504    -3.59   0.000    -12.10682   -3.527394
+       knot2 |   7.711078   2.088203     3.69   0.000     3.601064    11.82109
+       knot3 |   .7560992   .1816912     4.16   0.000     .3984934    1.113705
+       knot4 |  -3.270593   1.093336    -2.99   0.003    -5.422504   -1.118682
+       knot5 |   1.769967   1.984205     0.89   0.373    -2.135358    5.675292
+       knot6 |   1.656171     1.2503     1.32   0.186    -.8046773    4.117019
+       knot7 |  -.2573935   .3007933    -0.86   0.393    -.8494168    .3346298
+       knot8 |   .2845647   .1515668     1.88   0.061    -.0137501    .5828795
+       knot9 |   .0328032   .1646098     0.20   0.842    -.2911828    .3567893
+       _cons |    8.52716   .9351553     9.12   0.000     6.686581    10.36774
+------------------------------------------------------------------------------
+
+. di %12.6f e(r2)
+    0.938483
+
+. di "ALL REPRO CHECKS PASSED"
+ALL REPRO CHECKS PASSED
+
+. 
+end of do-file

@@ -1,0 +1,7 @@
+design,method,coverage,n
+education,connect,.80000001,100
+education,ols,.94,100
+water,connect,.99000001,100
+water,ols,.94,100
+clustered,connect,.99000001,100
+clustered,ols,.98000002,100

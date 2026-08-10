@@ -1,0 +1,3081 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do examples/test_nnsreg.do 
+
+. *! version 2.1.0  18jul2026
+. *! Replication, comparison, and testing script for the nnsreg package.
+. *!
+. *! Reproduces every figure and table in the Stata Journal manuscript:
+. *!   Section 1: verification tests (stored results, predict, error handling)
+. *!   Sections 2-4: the three simulated examples (education, water, clustered)
+> ,
+. *!     each with a small-multiples fit-comparison figure (one method per
+. *!     panel, so no overlapping curves), sensitivity figures, and, for the
+. *!     education example, a coefficient plot and a plateau test via lincom
+. *!   Section 5: Monte Carlo study across `MCREPS' fresh draws of all three
+. *!     designs, because a comparison based on one simulated dataset is weak
+. *!     evidence; exports summary table and box-plot figure
+. *!   Section 6: single-run diagnostics table
+. *!
+. *! The metric "RMSE against the true curve" is available because the data are
+. *! simulated: it measures recovery of the known signal, so a method that fits
+. *! noise slightly better (lower observed RMSE) can still score worse on it.
+. clear all
+
+. macro drop _all
+
+. set more off
+
+. set scheme sj
+
+. 
+. adopath + "code"
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+  [7]              "code"
+
+. cap mkdir "manuscript"
+
+. cap mkdir "examples"
+
+. 
+. which nnsreg
+code/nnsreg.ado
+*! version 1.3.2  18jul2026
+*! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.3.2: label connect-fit covariance/model metadata as heuristic/connect;
+*!        remove inherited regress postestimation flags that nnsreg does not
+*!        support; reject unsupported estat/margins calls cleanly; refresh
+*!        standardized coefficients after reposting; trim the stored
+*!        independent-variable name.
+*! 1.3.1: restrict vce() to robust/cluster; align cluster-missingness across
+*!        partitioning, estimation, prediction, and segment counts; clarify
+*!        order-depth implementation; warn on empty and thin x ranges; align
+*!        all retained connect-fit statistics with connected predictions.
+*! 1.3.0: new options minobs(), level(), vce() (method(ols) only), slopes,
+*!        knotlines; new stored results e(segments), e(knotmat), e(xmin),
+*!        e(xmax), e(minobs); guards for degenerate (near-constant) regressors
+*!        and perfect-fit covariance scaling; generate() now validated at parse
+*!        time and confirmed before estimation; predict notes out-of-range
+*!        scoring.
+*! 1.2.1: guard against missing regression-point coordinates when the
+*!        regressor support is clustered or gapped (empty central interval);
+*!        method(connect) e(r2), e(rmse), and e(V) scaling now use raw
+*!        (uncentered) residual sums of squares; option abbreviations
+*!        (ord, noi, meth, part, nop, gen) now accepted as documented
+
+. which nnsreg_p
+code/nnsreg_p.ado
+*! version 1.1.0  17jul2026
+*! nnsreg_p: Post-estimation predict program for nnsreg
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.1.0: note out-of-range scoring, since the terminal spline segments
+*!        extrapolate linearly beyond the estimation-sample range of the
+*!        regressor.
+
+. 
+. capture which coefplot
+
+. if _rc != 0 {
+.     di "coefplot not found. Installing from SSC..."
+.     ssc install coefplot, replace
+. }
+
+. 
+. // Number of Monte Carlo replications (section 5). 100 runs in a few minutes.
+. local MCREPS = 100
+
+. 
+. // Generates canonical datasets and defines the reusable nns_simdata program.
+. do "examples/simulated_data.do"
+
+. *! version 1.3.0  05jul2026
+. *! Simulated data generator for the nnsreg Stata Journal manuscript.
+. *! Defines nns_simdata, a reusable data-generating program, and writes the
+. *! three canonical example datasets to examples/.  The Monte Carlo study in
+. *! examples/test_nnsreg.do calls nns_simdata with fresh seeds, so the single
+. *! canonical datasets and the replication draws come from identical code.
+. clear all
+
+. 
+. capture program drop nns_simdata
+
+. program define nns_simdata
+  1.     // Generates one simulated example dataset in memory (does not save).
+.     // design(education|water|clustered) picks the data-generating process.
+.     // seed(#) makes the draw reproducible; omit to continue the RNG stream.
+.     syntax, DESign(string) [SEED(integer -1)]
+  2. 
+.     if !inlist("`design'", "education", "water", "clustered") {
+  3.         di as error "design() must be education, water, or clustered"
+  4.         exit 198
+  5.     }
+  6.     if `seed' >= 0 set seed `seed'
+  7.     clear
+  8. 
+.     if "`design'" == "education" {
+  9.         // Smooth S-curve with diminishing returns: flat at low spending,
+.         // rising through the middle, plateauing near the top.
+.         // True curve: 40 + 45 / (1 + exp(-0.8*(spend - 11))), noise sd = 4.
+.         set obs 250
+ 10.         gen district_id = _n
+ 11.         gen spend_pupil = 5 + 15 * runiform()
+ 12.         gen true_staar = 40 + 45 / (1 + exp(-0.8 * (spend_pupil - 11)))
+ 13.         gen staar_pass = true_staar + rnormal(0, 4)
+ 14.         replace staar_pass = 100 if staar_pass > 100
+ 15.         replace staar_pass = 0 if staar_pass < 0
+ 16.         label variable spend_pupil "Per-Pupil Operational Spending ($ Thou
+> sands)"
+ 17.         label variable staar_pass "STAAR Math Passing Rate (%)"
+ 18.         label variable true_staar "True passing-rate curve (simulation)"
+ 19.         label data "Texas School District Operational Funding and Achievem
+> ent (Simulated)"
+ 20.     }
+ 21.     else if "`design'" == "water" {
+ 22.         // Threshold behavior: loss rate is flat below a pipe age of 35 ye
+> ars,
+.         // then rises with a linear plus quadratic term.  Noise sd = 2.5.
+.         // The kink at age 35 is the "true change point" referenced in the
+.         // manuscript's knot-location figure.
+.         set obs 300
+ 23.         gen system_id = _n
+ 24.         gen pipe_age = 80 * runiform()
+ 25.         gen true_loss = 8 if pipe_age <= 35
+ 26.         replace true_loss = 8 + 0.4 * (pipe_age - 35) + 0.01 * (pipe_age -
+>  35)^2 ///
+>             if pipe_age > 35
+ 27.         gen water_loss = true_loss + rnormal(0, 2.5)
+ 28.         replace water_loss = 100 if water_loss > 100
+ 29.         replace water_loss = 0 if water_loss < 0
+ 30.         label variable pipe_age "Average Water Pipe Age (Years)"
+ 31.         label variable water_loss "Annual Water Loss Rate (%)"
+ 32.         label variable true_loss "True loss-rate curve (simulation)"
+ 33.         label data "Texas Municipal Water Infrastructure and Water Loss (S
+> imulated)"
+ 34.     }
+ 35.     else {
+ 36.         // Clustered support with sharp local features: observations are
+.         // concentrated in three regions (centers 22, 36, 58) holding a local
+.         // peak, a sharp dip, and a partial recovery.  This design mirrors th
+> e
+.         // cluster benchmarks in Vinod and Viole (2018), where partition-base
+> d
+.         // fits are expected to have an advantage over a global bandwidth.
+.         set obs 260
+ 37.         gen unit_id = _n
+ 38.         gen mix = runiform()
+ 39.         gen cluster_score = cond(mix < .45, rnormal(22, 3), ///
+>             cond(mix < .75, rnormal(36, 2.2), rnormal(58, 4)))
+ 40.         replace cluster_score = max(5, min(70, cluster_score))
+ 41.         gen true_index = 18 + .18 * cluster_score ///
+>             + 10 * exp(-((cluster_score - 24)^2) / 35) ///
+>             - 16 * exp(-((cluster_score - 35)^2) / 18) ///
+>             + 8 * exp(-((cluster_score - 58)^2) / 50)
+ 42.         gen outcome_index = true_index + rnormal(0, 1.2)
+ 43.         drop mix
+ 44.         label variable cluster_score "Clustered Index Score"
+ 45.         label variable outcome_index "Outcome Index"
+ 46.         label variable true_index "True outcome curve (simulation)"
+ 47.         label data "Clustered peak/dip benchmark data (Simulated)"
+ 48.     }
+ 49. end
+
+. 
+. // Canonical example datasets used in the manuscript (fixed seeds).
+. nns_simdata, design(education) seed(2036)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+
+. save "examples/texas_education.dta", replace
+file examples/texas_education.dta saved
+
+. 
+. nns_simdata, design(water) seed(2037)
+Number of observations (_N) was 0, now 300.
+(149 missing values generated)
+(149 real changes made)
+(0 real changes made)
+(0 real changes made)
+
+. save "examples/texas_water.dta", replace
+file examples/texas_water.dta saved
+
+. 
+. nns_simdata, design(clustered) seed(2038)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+
+. save "examples/clustered_peak_dip.dta", replace
+file examples/clustered_peak_dip.dta saved
+
+. 
+. di "Data simulation complete. Files saved in examples/ subfolder."
+Data simulation complete. Files saved in examples/ subfolder.
+
+. 
+end of do-file
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // Helper programs
+. // --------------------------------------------------------------------------
+> -
+. 
+. // calc_metrics: in-sample R2, RMSE vs observed outcome, RMSE vs true curve.
+. capture program drop calc_metrics
+
+. program define calc_metrics, rclass
+  1.     syntax, Fitvar(name) Yvar(name) Truevar(name)
+  2. 
+.     tempvar res_obs res_true tss
+  3.     quietly gen double `res_obs' = (`yvar' - `fitvar')^2
+  4.     quietly gen double `res_true' = (`truevar' - `fitvar')^2
+  5.     quietly summarize `res_obs', meanonly
+  6.     local rss = r(sum)
+  7.     local rmse_obs = sqrt(r(mean))
+  8.     quietly summarize `res_true', meanonly
+  9.     local rmse_true = sqrt(r(mean))
+ 10.     quietly summarize `yvar', meanonly
+ 11.     local ybar = r(mean)
+ 12.     quietly gen double `tss' = (`yvar' - `ybar')^2
+ 13.     quietly summarize `tss', meanonly
+ 14. 
+.     return scalar r2 = 1 - (`rss' / r(sum))
+ 15.     return scalar rmse_obs = `rmse_obs'
+ 16.     return scalar rmse_true = `rmse_true'
+ 17. end
+
+. 
+. // fitpanel: one small-multiples panel = gray scatter + black true curve +
+. // one orange fitted curve.  Keeping one method per panel avoids the
+. // overlapping-line clutter of a single six-layer comparison graph.
+. capture program drop fitpanel
+
+. program define fitpanel
+  1.     syntax, Yvar(name) Xvar(name) Truevar(name) Fitvar(name) ///
+>         PTitle(string asis) PSub(string asis) GName(name) [YLab(string asis)]
+  2. 
+.     twoway ///
+>         (scatter `yvar' `xvar', mcolor("108 122 141%35") msymbol(Oh) msize(ti
+> ny)) ///
+>         (line `truevar' `xvar', sort lcolor(black) lwidth(medthin)) ///
+>         (line `fitvar' `xvar', sort lcolor("212 69 0") lwidth(medthick)), ///
+>         title(`ptitle', size(medsmall) position(11) span) ///
+>         subtitle(`psub', size(small) position(11) span color("108 122 141")) 
+> ///
+>         ytitle("") xtitle("") ///
+>         ylabel(`ylab', labsize(small) angle(horizontal)) ///
+>         xlabel(, labsize(small)) ///
+>         legend(off) graphregion(color(white)) ///
+>         name(`gname', replace) nodraw
+  3. end
+
+. 
+. // Diagnostics postfile for the single-run table (manuscript table 1).
+. tempname diag
+
+. postfile `diag' str14 example str30 model double(r2 rmse_obs rmse_true) using
+>  ///
+>     "examples/model_diagnostics.dta", replace
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 1. Verification tests: stored results, predict, if/in, error handling
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Section 1: verification tests ==="
+
+=== Section 1: verification tests ===
+
+. 
+. use "examples/texas_education.dta", clear
+(Texas School District Operational Funding and Achievement (Simulated))
+
+. 
+. quietly nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy)
+>  ///
+>     noplot generate(chk_fit)
+
+. assert e(cmd) == "nnsreg"
+
+. assert e(N) == 250
+
+. assert e(order) == 3
+
+. assert "`e(method)'" == "connect"
+
+. assert "`e(model)'" == "connect"
+
+. assert "`e(vce)'" == "heuristic"
+
+. assert "`e(vcetype)'" == "Heuristic reference"
+
+. assert "`e(indepvar)'" == "spend_pupil"
+
+. assert "`e(marginsok)'" == ""
+
+. assert "`e(marginsnotok)'" == "_ALL"
+
+. assert "`e(estat_cmd)'" == "nnsreg_estat"
+
+. matrix chk_beta = e(beta)
+
+. local chk_beta_names : colnames chk_beta
+
+. assert "`: word 1 of `chk_beta_names''" == "spend_pupil"
+
+. quietly summarize staar_pass
+
+. local chk_ysd = sqrt(r(Var))
+
+. quietly summarize spend_pupil
+
+. local chk_xsd = sqrt(r(Var))
+
+. assert abs(chk_beta[1,1] - e(b)[1,1] * `chk_xsd' / `chk_ysd') < 1e-10
+
+. capture estat summarize
+
+. assert _rc == 321
+
+. assert "`e(knots)'" != ""
+
+. assert strpos("`e(cmdline)'", "nnsreg ") == 1
+
+. 
+. // predict must reproduce generate() exactly, and residuals must add up.
+. quietly predict double chk_p
+
+. quietly gen double chk_pdiff = abs(chk_p - chk_fit)
+
+. quietly summarize chk_pdiff
+
+. assert r(max) < 1e-8
+
+. quietly predict double chk_r, residuals
+
+. quietly gen double chk_rdiff = abs((staar_pass - chk_p) - chk_r)
+
+. quietly summarize chk_rdiff
+
+. assert r(max) < 1e-8
+
+. quietly gen double chk_r2 = chk_r^2
+
+. quietly summarize chk_r2, meanonly
+
+. assert abs(e(rss) - r(sum)) < 1e-8
+
+. assert missing(e(F)) & missing(e(ll)) & missing(e(ll_0))
+
+. 
+. // if/in restrictions respect the estimation sample.
+. quietly nnsreg staar_pass spend_pupil if spend_pupil < 15, order(2) noplot
+
+. assert e(N) < 250 & e(N) > 0
+
+. 
+. // Documented option abbreviations parse (ord, noi, meth, part, nop, gen).
+. quietly nnsreg staar_pass spend_pupil, ord(2) meth(ols) part(xonly) ///
+>     noi(median) nop gen(chk_abbrev)
+
+. assert e(order) == 2 & "`e(method)'" == "ols" & "`e(partition)'" == "xonly"
+
+. 
+. // Invalid options exit with error 198.
+. capture nnsreg staar_pass spend_pupil, method(bogus) noplot
+
+. assert _rc == 198
+
+. capture nnsreg staar_pass spend_pupil, noise(bogus) noplot
+
+. assert _rc == 198
+
+. capture nnsreg staar_pass spend_pupil, partition(bogus) noplot
+
+. assert _rc == 198
+
+. capture nnsreg staar_pass spend_pupil, order(0) noplot
+
+. assert _rc == 198
+
+. 
+. // vce() is deliberately restricted to robust and cluster for method(ols).
+. foreach bad in hc2 hc3 bootstrap jackknife {
+  2.     capture nnsreg staar_pass spend_pupil, method(ols) vce(`bad') noplot
+  3.     assert _rc == 198
+  4. }
+
+. capture nnsreg staar_pass spend_pupil, method(connect) vce(robust) noplot
+
+. assert _rc == 198
+
+. quietly nnsreg staar_pass spend_pupil, method(ols) vce(robust) noplot
+
+. assert "`e(vce)'" == "robust"
+
+. assert "`e(model)'" == "ols"
+
+. quietly nnsreg staar_pass spend_pupil, method(ols) vce(r) noplot
+
+. assert "`e(vce)'" == "robust"
+
+. capture margins, at(spend_pupil=(5 10 15))
+
+. assert _rc == 322
+
+. 
+. // Missing cluster IDs must be excluded before partitioning so all reported
+. // results describe the same estimation sample.
+. gen long chk_cluster = ceil(_n / 10)
+
+. replace chk_cluster = . in 1/10
+(10 real changes made, 10 to missing)
+
+. quietly nnsreg staar_pass spend_pupil, method(ols) vce(cluster chk_cluster) /
+> //
+>     slopes noplot generate(chk_cluster_fit)
+
+. assert e(N) == 240
+
+. assert e(N_clust) == 24
+
+. assert "`e(clustvar)'" == "chk_cluster"
+
+. count if e(sample)
+  240
+
+. assert r(N) == e(N)
+
+. count if !missing(chk_cluster_fit)
+  240
+
+. assert r(N) == e(N)
+
+. matrix chk_segments = e(segments)
+
+. mata: st_numscalar("chk_seg_n", sum(st_matrix("chk_segments")[.,5]))
+
+. assert chk_seg_n == e(N)
+
+. 
+. // order(1) is the unsplit full-sample partition.
+. quietly nnsreg staar_pass spend_pupil, order(1) method(ols) noplot
+
+. assert e(order) == 1
+
+. local order1_knots : word count `e(knots)'
+
+. quietly nnsreg staar_pass spend_pupil, order(2) method(ols) noplot
+
+. local order2_knots : word count `e(knots)'
+
+. assert `order2_knots' > `order1_knots'
+
+. 
+. di "Section 1 verification tests passed."
+Section 1 verification tests passed.
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 2. Education example: smooth S-curve with a plateau
+. //    Expectation (honest framing): the kernel smoother should recover a
+. //    smooth curve at least as well as NNS here.  The NNS payoff is the
+. //    stored slope components and the testable plateau (lincom below).
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Section 2: education example (smooth S-curve) ==="
+
+=== Section 2: education example (smooth S-curve) ===
+
+. 
+. use "examples/texas_education.dta", clear
+(Texas School District Operational Funding and Achievement (Simulated))
+
+. 
+. regress staar_pass spend_pupil
+
+      Source |       SS           df       MS      Number of obs   =       250
+-------------+----------------------------------   F(1, 248)       =   1569.26
+       Model |  69131.6852         1  69131.6852   Prob > F        =    0.0000
+    Residual |  10925.3186       248  44.0537042   R-squared       =    0.8635
+-------------+----------------------------------   Adj R-squared   =    0.8630
+       Total |  80057.0038       249  321.514072   Root MSE        =    6.6373
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   3.767062   .0950945    39.61   0.000     3.579766    3.954358
+       _cons |   19.07044   1.254547    15.20   0.000     16.59951    21.54136
+------------------------------------------------------------------------------
+
+. estimates store edu_linear
+
+. predict double fit_edu_linear, xb
+
+. calc_metrics, fitvar(fit_edu_linear) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("Linear regression") (r(r2)) (r(rmse_obs)) (r(rmse
+> _true))
+
+. local rt_lin : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress kernel staar_pass spend_pupil
+
+. predict double fit_edu_np, mean
+
+. calc_metrics, fitvar(fit_edu_np) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("npregress kernel") (r(r2)) (r(rmse_obs)) (r(rmse_
+> true))
+
+. local rt_np : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress series staar_pass spend_pupil
+
+. predict double fit_edu_series, mean
+
+. calc_metrics, fitvar(fit_edu_series) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("npregress series") (r(r2)) (r(rmse_obs)) (r(rmse_
+> true))
+
+. local rt_series : di %5.3f r(rmse_true)
+
+. 
+. nnsreg staar_pass spend_pupil, order(2) method(connect) partition(xy) ///
+>     noplot generate(fit_edu_conn_o2)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        250
+R-squared:            0.9238
+Root MSE:             4.9892
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  staar_pass | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   2.291839   .5142908     4.46   0.000     1.278843    3.304834
+       knot1 |   4.373882    .795574     5.50   0.000     2.806845     5.94092
+       knot2 |  -4.287708   .5999335    -7.15   0.000    -5.469394   -3.106023
+       knot3 |  -1.647963   .6954114    -2.37   0.019     -3.01771    -.278215
+       _cons |   28.81106   3.676664     7.84   0.000     21.56916    36.05297
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store edu_conn_o2
+
+. calc_metrics, fitvar(fit_edu_conn_o2) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("NNS connect xy o2") (r(r2)) (r(rmse_obs)) (r(rmse
+> _true))
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy) ///
+>     noplot generate(fit_edu_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9272
+Root MSE:             4.9380
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  staar_pass | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   6.414835   2.065966     3.11   0.002     2.345007    10.48466
+       knot1 |  -38.42267   12.13469    -3.17   0.002    -62.32728   -14.51806
+       knot2 |   33.71038   11.14115     3.03   0.003       11.763    55.65776
+       knot3 |   5.758648   1.765085     3.26   0.001     2.281537    9.235759
+       knot4 |   1.668066   7.469167     0.22   0.823    -13.04574    16.38187
+       knot5 |   6.868115   13.09004     0.52   0.600    -18.91846    32.65469
+       knot6 |  -10.78198   7.699945    -1.40   0.163     -25.9504    4.386446
+       knot7 |  -8.614286   1.875776    -4.59   0.000    -12.30945   -4.919122
+       knot8 |   9.589458    1.80015     5.33   0.000     6.043272    13.13564
+       knot9 |  -5.920695   1.735984    -3.41   0.001    -9.340479   -2.500911
+       _cons |    6.99154   11.78148     0.59   0.553    -16.21726    30.20034
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store edu_conn_o3
+
+. calc_metrics, fitvar(fit_edu_conn_o3) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("NNS connect xy o3") (r(r2)) (r(rmse_obs)) (r(rmse
+> _true))
+
+. local rt_conn : di %5.3f r(rmse_true)
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy) ///
+>     noise(median) noplot generate(fit_edu_conn_med_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               connect
+Noise reduction:      median
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9379
+Root MSE:             4.5423
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  staar_pass | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   .8447739   1.235257     0.68   0.495    -1.588505    3.278053
+       knot1 |   9.439252    3.84878     2.45   0.015      1.85771    17.02079
+       knot2 |  -12.10569   3.853492    -3.14   0.002    -19.69652   -4.514863
+       knot3 |   10.48505   1.866223     5.62   0.000     6.808864    14.16125
+       knot4 |  -1.993916   1.162014    -1.72   0.087    -4.282917    .2950854
+       knot5 |   -8.35583   1.061207    -7.87   0.000    -10.44626   -6.265404
+       knot6 |    7.24272   1.804985     4.01   0.000      3.68716    10.79828
+       knot7 |  -5.553602   1.950013    -2.85   0.005    -9.394846   -1.712357
+       _cons |   35.55025   7.377956     4.82   0.000     21.01674    50.08376
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store edu_conn_med_o3
+
+. calc_metrics, fitvar(fit_edu_conn_med_o3) yvar(staar_pass) truevar(true_staar
+> )
+
+. post `diag' ("education") ("NNS median xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_
+> true))
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_edu_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9494
+Root MSE:             4.1190
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   1.596661   1.723323     0.93   0.355     -1.79818    4.991503
+       knot1 |  -9.011045   10.12214    -0.89   0.374    -28.95104    10.92895
+       knot2 |   10.02821   9.293371     1.08   0.282    -8.279165    28.33559
+       knot3 |   4.362331   1.472343     2.96   0.003     1.461904    7.262758
+       knot4 |   5.818051   6.230395     0.93   0.351    -6.455449    18.09155
+       knot5 |  -3.221368   10.91903    -0.30   0.768     -24.7312    18.28847
+       knot6 |  -4.405113   6.422898    -0.69   0.493    -17.05783    8.247607
+       knot7 |  -4.086812   1.564676    -2.61   0.010    -7.169128   -1.004496
+       knot8 |   -.174616   1.501593    -0.12   0.908    -3.132662     2.78343
+       knot9 |  -.8417628   1.448069    -0.58   0.562     -3.69437    2.010845
+       _cons |   32.08628   9.827502     3.26   0.001     12.72669    51.44586
+------------------------------------------------------------------------------
+
+. estimates store edu_ols_o3
+
+. calc_metrics, fitvar(fit_edu_ols_o3) yvar(staar_pass) truevar(true_staar)
+
+. post `diag' ("education") ("NNS OLS xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. local rt_ols : di %5.3f r(rmse_true)
+
+. 
+. // Figure: 2x2 small multiples, one fitted method per panel.
+. fitpanel, yvar(staar_pass) xvar(spend_pupil) truevar(true_staar) ///
+>     fitvar(fit_edu_linear) ptitle("A. Linear regression") ///
+>     psub("True-curve RMSE = `rt_lin'") gname(edu_p1) ylab(20(20)100)
+
+. fitpanel, yvar(staar_pass) xvar(spend_pupil) truevar(true_staar) ///
+>     fitvar(fit_edu_np) ptitle("B. npregress kernel") ///
+>     psub("True-curve RMSE = `rt_np'") gname(edu_p2) ylab(20(20)100)
+
+. fitpanel, yvar(staar_pass) xvar(spend_pupil) truevar(true_staar) ///
+>     fitvar(fit_edu_conn_o3) ptitle("C. NNS connect, order(3)") ///
+>     psub("True-curve RMSE = `rt_conn'") gname(edu_p3) ylab(20(20)100)
+
+. fitpanel, yvar(staar_pass) xvar(spend_pupil) truevar(true_staar) ///
+>     fitvar(fit_edu_ols_o3) ptitle("D. NNS OLS, order(3)") ///
+>     psub("True-curve RMSE = `rt_ols'") gname(edu_p4) ylab(20(20)100)
+
+. 
+. graph combine edu_p1 edu_p2 edu_p3 edu_p4, cols(2) imargin(small) ///
+>     l1title("STAAR Math Passing Rate (%)", size(small)) ///
+>     b1title("Per-Pupil Operational Spending (Thousands of Dollars)", size(sma
+> ll)) ///
+>     note("Gray dots: simulated observations.  Black line: true curve.  Orange
+>  line: fitted values.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7.5) ysize(6) name(edu_fits, replace)
+
+. graph export "manuscript/fig_edu_fits.pdf", replace
+file manuscript/fig_edu_fits.pdf saved as PDF format
+
+. graph export "manuscript/fig_edu_fits.png", replace width(2200)
+file manuscript/fig_edu_fits.png written in PNG format
+
+. 
+. // Figure: stored slope components for the two NNS fits, with the adaptive
+. // knot locations written into the coefficient labels.  Restricting the plot
+. // to the two NNS models (dropping the linear fit) and renaming the
+. // coefficients removes the long-variable-label collisions of earlier drafts.
+. estimates restore edu_ols_o3
+(results edu_ols_o3 are active now)
+
+. local clab `"spend_pupil = "Slope of first segment""'
+
+. local j = 1
+
+. foreach k in `e(knots)' {
+  2.     local kf = strtrim(string(`k', "%4.1f"))
+  3.     local clab `"`clab' knot`j' = "Slope change at spending = `kf'""'
+  4.     local ++j
+  5. }
+
+. coefplot ///
+>     (edu_conn_o3, label("NNS connect") mcolor("212 69 0") ciopts(lcolor("212 
+> 69 0"))) ///
+>     (edu_ols_o3, label("NNS OLS") mcolor("27 45 85") ciopts(lcolor("27 45 85"
+> ))), ///
+>     drop(_cons) coeflabels(`clab', labsize(small)) ///
+>     xline(0, lcolor(gs10) lpattern(dash)) ///
+>     xtitle("Slope or slope change (percentage points per thousand dollars)", 
+> ///
+>         size(small)) ///
+>     xlabel(, labsize(small)) ///
+>     legend(rows(1) size(small) position(6) region(lcolor(none))) ///
+>     graphregion(color(white)) xsize(6.5) ysize(5) name(edu_coef, replace)
+
+. graph export "manuscript/fig_edu_coef.pdf", replace
+file manuscript/fig_edu_coef.pdf saved as PDF format
+
+. graph export "manuscript/fig_edu_coef.png", replace width(2000)
+file manuscript/fig_edu_coef.png written in PNG format
+
+. 
+. // Postestimation demo: standard Stata reporting tools work after nnsreg.
+. estimates table edu_conn_o3 edu_ols_o3, b(%9.3f) se(%9.3f) stats(r2 rmse N)
+
+--------------------------------------
+    Variable | edu_con~3   edu_ols~3  
+-------------+------------------------
+ spend_pupil |     6.415       1.597  
+             |     2.066       1.723  
+       knot1 |   -38.423      -9.011  
+             |    12.135      10.122  
+       knot2 |    33.710      10.028  
+             |    11.141       9.293  
+       knot3 |     5.759       4.362  
+             |     1.765       1.472  
+       knot4 |     1.668       5.818  
+             |     7.469       6.230  
+       knot5 |     6.868      -3.221  
+             |    13.090      10.919  
+       knot6 |   -10.782      -4.405  
+             |     7.700       6.423  
+       knot7 |    -8.614      -4.087  
+             |     1.876       1.565  
+       knot8 |     9.589      -0.175  
+             |     1.800       1.502  
+       knot9 |    -5.921      -0.842  
+             |     1.736       1.448  
+       _cons |     6.992      32.086  
+             |    11.781       9.828  
+-------------+------------------------
+          r2 |     0.927       0.949  
+        rmse |     4.938       4.119  
+           N |       250         250  
+--------------------------------------
+                          Legend: b/se
+
+. 
+. // Plateau test: the slope of the final segment equals the first-segment
+. // coefficient plus every knot (slope-change) coefficient.  A terminal slope
+. // near zero is the "plateau" read of the S-curve.  These standard errors are
+. // conditional on the NNS-selected knots, so read this as a descriptive check
+. // rather than exact inference.
+. estimates restore edu_ols_o3
+(results edu_ols_o3 are active now)
+
+. local terms "spend_pupil"
+
+. foreach nm in `: colnames e(b)' {
+  2.     if strpos("`nm'", "knot") local terms "`terms' + `nm'"
+  3. }
+
+. di as text "Terminal-segment slope (plateau test), NNS OLS order(3):"
+Terminal-segment slope (plateau test), NNS OLS order(3):
+
+. lincom `terms'
+
+ ( 1)  spend_pupil + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 +
+       knot8 + knot9 = 0
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |   .0645397   .7393695     0.09   0.931    -1.391973    1.521053
+------------------------------------------------------------------------------
+
+. local tcrit = invttail(r(df), 0.025)
+
+. 
+. tempname fh
+
+. file open `fh' using "manuscript/table_postest.csv", write replace
+
+. file write `fh' "quantity,estimate,se,ci_lower,ci_upper" _n
+
+. file write `fh' "edu_terminal_slope,`r(estimate)',`r(se)'," ///
+>     "`=r(estimate) - `tcrit'*r(se)',`=r(estimate) + `tcrit'*r(se)'" _n
+
+. 
+. // Sensitivity figure: order and center choices, NNS connect variants only.
+. twoway ///
+>     (scatter staar_pass spend_pupil, mcolor("108 122 141%35") msymbol(Oh) msi
+> ze(tiny)) ///
+>     (line true_staar spend_pupil, sort lcolor(black) lwidth(medthick)) ///
+>     (line fit_edu_conn_o2 spend_pupil, sort lcolor("43 108 176") lpattern(sho
+> rtdash) lwidth(medthin)) ///
+>     (line fit_edu_conn_o3 spend_pupil, sort lcolor("212 69 0") lpattern(dash)
+>  lwidth(medthick)) ///
+>     (line fit_edu_conn_med_o3 spend_pupil, sort lcolor("0 109 44") lpattern(l
+> ongdash) lwidth(medthin)), ///
+>     ytitle("STAAR Math Passing Rate (%)", size(small)) ///
+>     xtitle("Per-Pupil Operational Spending (Thousands of Dollars)", size(smal
+> l)) ///
+>     ylabel(20(20)100, labsize(small) angle(horizontal)) xlabel(, labsize(smal
+> l)) ///
+>     legend(order(2 "True curve" 3 "order(2), mean" 4 "order(3), mean" ///
+>         5 "order(3), median") rows(1) size(small) position(6) region(lcolor(n
+> one))) ///
+>     graphregion(color(white)) xsize(7) ysize(4.5) name(edu_sensitivity, repla
+> ce)
+
+. graph export "manuscript/fig_edu_sensitivity.pdf", replace
+file manuscript/fig_edu_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_edu_sensitivity.png", replace width(2000)
+file manuscript/fig_edu_sensitivity.png written in PNG format
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 3. Water example: threshold behavior
+. //    The payoff here is interpretability: nnsreg stores its knots in
+. //    e(knots), so the analyst can display where the fitted slope changes and
+. //    compare those locations with substantive expectations.
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Section 3: water example (threshold) ==="
+
+=== Section 3: water example (threshold) ===
+
+. 
+. use "examples/texas_water.dta", clear
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+
+. 
+. regress water_loss pipe_age
+
+      Source |       SS           df       MS      Number of obs   =       300
+-------------+----------------------------------   F(1, 298)       =    928.34
+       Model |  28291.6481         1  28291.6481   Prob > F        =    0.0000
+    Residual |  9081.67283       298  30.4754122   R-squared       =    0.7570
+-------------+----------------------------------   Adj R-squared   =    0.7562
+       Total |  37373.3209       299  124.994384   Root MSE        =    5.5205
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .4383173   .0143858    30.47   0.000     .4100067     .466628
+       _cons |  -1.013424   .6305437    -1.61   0.109    -2.254306    .2274588
+------------------------------------------------------------------------------
+
+. estimates store water_linear
+
+. predict double fit_water_linear, xb
+
+. calc_metrics, fitvar(fit_water_linear) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("Linear regression") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. local rt_lin : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress kernel water_loss pipe_age
+
+. predict double fit_water_np, mean
+
+. calc_metrics, fitvar(fit_water_np) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("npregress kernel") (r(r2)) (r(rmse_obs)) (r(rmse_true
+> ))
+
+. local rt_np : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress series water_loss pipe_age
+
+. predict double fit_water_series, mean
+
+. calc_metrics, fitvar(fit_water_series) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("npregress series") (r(r2)) (r(rmse_obs)) (r(rmse_true
+> ))
+
+. local rt_series : di %5.3f r(rmse_true)
+
+. 
+. nnsreg water_loss pipe_age, order(2) method(connect) partition(xy) ///
+>     noplot generate(fit_water_conn_o2)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable: pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        300
+R-squared:            0.9448
+Root MSE:             2.6445
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  water_loss | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.0347484   .0374135    -0.93   0.354    -.1083795    .0388827
+       knot1 |   .2047159   .0565766     3.62   0.000      .093371    .3160607
+       knot2 |   .6885377   .0554806    12.41   0.000     .5793497    .7977257
+       knot3 |   .1350586   .0824989     1.64   0.103    -.0273024    .2974195
+       _cons |   8.687409   .5604124    15.50   0.000     7.584496    9.790322
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store water_conn_o2
+
+. calc_metrics, fitvar(fit_water_conn_o2) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("NNS connect xy o2") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) ///
+>     noplot generate(fit_water_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable: pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9381
+Root MSE:             2.8284
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  water_loss | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .1508916   .1739803     0.87   0.387    -.1915376    .4933207
+       knot1 |  -7.817108    2.22309    -3.52   0.001    -12.19261   -3.441608
+       knot2 |   7.711078   2.129963     3.62   0.000     3.518871    11.90328
+       knot3 |   .7560992   .1853247     4.08   0.000     .3913419    1.120857
+       knot4 |  -3.270593   1.115201    -2.93   0.004    -5.465538   -1.075648
+       knot5 |   1.769967   2.023886     0.87   0.383    -2.213458    5.753392
+       knot6 |   1.656171   1.275303     1.30   0.195    -.8538899    4.166231
+       knot7 |  -.2573935   .3068086    -0.84   0.402    -.8612562    .3464693
+       knot8 |   .2845647   .1545979     1.84   0.067    -.0197158    .5888453
+       knot9 |   .0328032   .1679017     0.20   0.845     -.297662    .3632684
+       _cons |    8.52716   .9538568     8.94   0.000     6.649773    10.40455
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store water_conn_o3
+
+. calc_metrics, fitvar(fit_water_conn_o3) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("NNS connect xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. local rt_conn : di %5.3f r(rmse_true)
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) ///
+>     noise(median) noplot generate(fit_water_conn_med_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable: pipe_age
+Method:               connect
+Noise reduction:      median
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9288
+Root MSE:             3.0566
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  water_loss | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .5544745   .4298479     1.29   0.198    -.2916048    1.400554
+       knot1 |   -2.56893   1.717655    -1.50   0.136    -5.949829    .8119696
+       knot2 |   1.513028   1.542362     0.98   0.327    -1.522839    4.548895
+       knot3 |   1.434605   .6128699     2.34   0.020     .2282795    2.640931
+       knot4 |  -.4196411   .6045682    -0.69   0.488    -1.609626    .7703443
+       knot5 |   -1.97861    .688818    -2.87   0.004    -3.334426   -.6227936
+       knot6 |  -3.315505   5.491407    -0.60   0.546    -14.12437    7.493356
+       knot7 |      4.775   5.162367     0.92   0.356    -5.386204     14.9362
+       knot8 |    .752453   .5611124     1.34   0.181    -.3519972    1.856903
+       knot9 |    .832168   .9749399     0.85   0.394    -1.086828    2.751164
+      knot10 |  -.8836443   .6452151    -1.37   0.172    -2.153636    .3863471
+      knot11 |  -2.615652   1.048466    -2.49   0.013    -4.679371   -.5519331
+      knot12 |   2.860213   1.046718     2.73   0.007     .7999333    4.920492
+      knot13 |   .2419834   .1836014     1.32   0.189    -.1194034    .6033701
+       _cons |   8.143834   1.327388     6.14   0.000     5.531105    10.75656
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store water_conn_med_o3
+
+. calc_metrics, fitvar(fit_water_conn_med_o3) yvar(water_loss) truevar(true_los
+> s)
+
+. post `diag' ("water") ("NNS median xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_true
+> ))
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_water_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable: pipe_age
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9542
+Root MSE:             2.4338
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.1292191   .1497085    -0.86   0.389    -.4238763    .1654382
+       knot1 |   .2308115   1.912949     0.12   0.904    -3.534267     3.99589
+       knot2 |  -.0731964   1.832814    -0.04   0.968    -3.680553     3.53416
+       knot3 |  -.0432611   .1594703    -0.27   0.786    -.3571316    .2706093
+       knot4 |   .4071888   .9596201     0.42   0.672    -1.481542    2.295919
+       knot5 |  -.0625219   1.741536    -0.04   0.971    -3.490223     3.36518
+       knot6 |   .3203993   1.097387     0.29   0.771    -1.839485    2.480284
+       knot7 |   .0481079   .2640061     0.18   0.856    -.4715106    .5677264
+       knot8 |   .1689443   .1330301     1.27   0.205    -.0928864     .430775
+       knot9 |    .342384   .1444779     2.37   0.018     .0580216    .6267463
+       _cons |   8.743268   .8207852    10.65   0.000     7.127793    10.35874
+------------------------------------------------------------------------------
+
+. estimates store water_ols_o3
+
+. calc_metrics, fitvar(fit_water_ols_o3) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("NNS OLS xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_true))
+
+. local rt_ols : di %5.3f r(rmse_true)
+
+. 
+. // partition(xonly) sensitivity row: vertical bands instead of quadrants.
+. nnsreg water_loss pipe_age, order(3) method(ols) partition(xonly) ///
+>     noplot generate(fit_water_xonly_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable: pipe_age
+Method:               ols
+Noise reduction:      mean
+Partition:            xonly
+Order:                3
+Number of obs:        300
+R-squared:            0.9490
+Root MSE:             2.5430
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.0219409   .1017617    -0.22   0.829    -.2222119    .1783301
+       knot1 |  -.0376994   .1216659    -0.31   0.757    -.2771425    .2017437
+       knot2 |   .6592005   .0423646    15.56   0.000     .5758254    .7425756
+       knot3 |   .5758254   .0599551     9.60   0.000     .4578315    .6938193
+       _cons |   8.385961   .7603057    11.03   0.000      6.88965    9.882272
+------------------------------------------------------------------------------
+
+. estimates store water_xonly_o3
+
+. calc_metrics, fitvar(fit_water_xonly_o3) yvar(water_loss) truevar(true_loss)
+
+. post `diag' ("water") ("NNS OLS xonly o3") (r(r2)) (r(rmse_obs)) (r(rmse_true
+> ))
+
+. 
+. // Figure: 2x2 small multiples, one fitted method per panel.
+. fitpanel, yvar(water_loss) xvar(pipe_age) truevar(true_loss) ///
+>     fitvar(fit_water_linear) ptitle("A. Linear regression") ///
+>     psub("True-curve RMSE = `rt_lin'") gname(water_p1) ylab(0(10)50)
+
+. fitpanel, yvar(water_loss) xvar(pipe_age) truevar(true_loss) ///
+>     fitvar(fit_water_np) ptitle("B. npregress kernel") ///
+>     psub("True-curve RMSE = `rt_np'") gname(water_p2) ylab(0(10)50)
+
+. fitpanel, yvar(water_loss) xvar(pipe_age) truevar(true_loss) ///
+>     fitvar(fit_water_conn_o3) ptitle("C. NNS connect, order(3)") ///
+>     psub("True-curve RMSE = `rt_conn'") gname(water_p3) ylab(0(10)50)
+
+. fitpanel, yvar(water_loss) xvar(pipe_age) truevar(true_loss) ///
+>     fitvar(fit_water_ols_o3) ptitle("D. NNS OLS, order(3)") ///
+>     psub("True-curve RMSE = `rt_ols'") gname(water_p4) ylab(0(10)50)
+
+. 
+. graph combine water_p1 water_p2 water_p3 water_p4, cols(2) imargin(small) ///
+>     l1title("Annual Water Loss Rate (%)", size(small)) ///
+>     b1title("Average Water Pipe Age (Years)", size(small)) ///
+>     note("Gray dots: simulated observations.  Black line: true curve.  Orange
+>  line: fitted values.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7.5) ysize(6) name(water_fits, replace)
+
+. graph export "manuscript/fig_water_fits.pdf", replace
+file manuscript/fig_water_fits.pdf saved as PDF format
+
+. graph export "manuscript/fig_water_fits.png", replace width(2200)
+file manuscript/fig_water_fits.png written in PNG format
+
+. 
+. // Figure: where did nnsreg place its knots?  The e(knots) macro makes the
+. // slope-change locations reportable; here they are drawn against the true
+. // change point at age 35 that was built into the simulation.
+. estimates restore water_ols_o3
+(results water_ols_o3 are active now)
+
+. local klist ""
+
+. foreach k in `e(knots)' {
+  2.     local klist "`klist' `k'"
+  3. }
+
+. twoway ///
+>     (scatter water_loss pipe_age, mcolor("108 122 141%35") msymbol(Oh) msize(
+> tiny)) ///
+>     (line true_loss pipe_age, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_water_ols_o3 pipe_age, sort lcolor("212 69 0") lwidth(medthick)
+> ), ///
+>     xline(`klist', lcolor("108 122 141") lpattern(shortdash) lwidth(vthin)) /
+> //
+>     xline(35, lcolor("27 45 85") lwidth(medthick)) ///
+>     text(46 34 "true change point (age 35)", placement(w) box ///
+>         fcolor(white) lcolor(none) margin(small) size(small) ///
+>         color("27 45 85")) ///
+>     ytitle("Annual Water Loss Rate (%)", size(small)) ///
+>     xtitle("Average Water Pipe Age (Years)", size(small)) ///
+>     ylabel(0(10)50, labsize(small) angle(horizontal)) xlabel(, labsize(small)
+> ) ///
+>     legend(order(2 "True curve" 3 "NNS OLS fit, order(3)") rows(1) ///
+>         size(small) position(6) region(lcolor(none))) ///
+>     note("Vertical dashed gray lines: NNS interior knots from e(knots).  Navy
+>  vertical line: true change point.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7) ysize(4.5) name(water_knots, replace)
+
+. graph export "manuscript/fig_water_knots.pdf", replace
+file manuscript/fig_water_knots.pdf saved as PDF format
+
+. graph export "manuscript/fig_water_knots.png", replace width(2000)
+file manuscript/fig_water_knots.png written in PNG format
+
+. 
+. // Slope contrast: first segment (young pipes) vs. terminal segment (old
+. // pipes).  Same conditional-on-knots caveat as the education plateau test.
+. di as text "First-segment slope (young pipes), NNS OLS order(3):"
+First-segment slope (young pipes), NNS OLS order(3):
+
+. lincom pipe_age
+
+ ( 1)  pipe_age = 0
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |  -.1292191   .1497085    -0.86   0.389    -.4238763    .1654382
+------------------------------------------------------------------------------
+
+. local tcrit = invttail(r(df), 0.025)
+
+. file write `fh' "water_first_slope,`r(estimate)',`r(se)'," ///
+>     "`=r(estimate) - `tcrit'*r(se)',`=r(estimate) + `tcrit'*r(se)'" _n
+
+. 
+. local terms "pipe_age"
+
+. foreach nm in `: colnames e(b)' {
+  2.     if strpos("`nm'", "knot") local terms "`terms' + `nm'"
+  3. }
+
+. di as text "Terminal-segment slope (old pipes), NNS OLS order(3):"
+Terminal-segment slope (old pipes), NNS OLS order(3):
+
+. lincom `terms'
+
+ ( 1)  pipe_age + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 + knot8
+       + knot9 = 0
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |   1.209637   .0946187    12.78   0.000     1.023408    1.395866
+------------------------------------------------------------------------------
+
+. local tcrit = invttail(r(df), 0.025)
+
+. file write `fh' "water_terminal_slope,`r(estimate)',`r(se)'," ///
+>     "`=r(estimate) - `tcrit'*r(se)',`=r(estimate) + `tcrit'*r(se)'" _n
+
+. file close `fh'
+
+. 
+. // Sensitivity figure: order and center choices, NNS connect variants only.
+. twoway ///
+>     (scatter water_loss pipe_age, mcolor("108 122 141%35") msymbol(Oh) msize(
+> tiny)) ///
+>     (line true_loss pipe_age, sort lcolor(black) lwidth(medthick)) ///
+>     (line fit_water_conn_o2 pipe_age, sort lcolor("43 108 176") lpattern(shor
+> tdash) lwidth(medthin)) ///
+>     (line fit_water_conn_o3 pipe_age, sort lcolor("212 69 0") lpattern(dash) 
+> lwidth(medthick)) ///
+>     (line fit_water_conn_med_o3 pipe_age, sort lcolor("0 109 44") lpattern(lo
+> ngdash) lwidth(medthin)), ///
+>     ytitle("Annual Water Loss Rate (%)", size(small)) ///
+>     xtitle("Average Water Pipe Age (Years)", size(small)) ///
+>     ylabel(0(10)50, labsize(small) angle(horizontal)) xlabel(, labsize(small)
+> ) ///
+>     legend(order(2 "True curve" 3 "order(2), mean" 4 "order(3), mean" ///
+>         5 "order(3), median") rows(1) size(small) position(6) region(lcolor(n
+> one))) ///
+>     graphregion(color(white)) xsize(7) ysize(4.5) name(water_sensitivity, rep
+> lace)
+
+. graph export "manuscript/fig_water_sensitivity.pdf", replace
+file manuscript/fig_water_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_water_sensitivity.png", replace width(2000)
+file manuscript/fig_water_sensitivity.png written in PNG format
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 4. Clustered peak/dip benchmark: the case for segmentation
+. //    Data are dense in three regions with a sharp dip between them, the
+. //    setting where Vinod and Viole (2018) report partition-based fits doing
+. //    better than a single global bandwidth.
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Section 4: clustered peak/dip benchmark ==="
+
+=== Section 4: clustered peak/dip benchmark ===
+
+. 
+. use "examples/clustered_peak_dip.dta", clear
+(Clustered peak/dip benchmark data (Simulated))
+
+. 
+. regress outcome_index cluster_score
+
+      Source |       SS           df       MS      Number of obs   =       260
+-------------+----------------------------------   F(1, 258)       =     11.38
+       Model |  978.025143         1  978.025143   Prob > F        =    0.0009
+    Residual |  22167.0146       258  85.9186614   R-squared       =    0.0423
+-------------+----------------------------------   Adj R-squared   =    0.0385
+       Total |  23145.0398       259  89.3630879   Root MSE        =    9.2692
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   .1328264   .0393689     3.37   0.001     .0553012    .2103517
+       _cons |   20.77231    1.50233    13.83   0.000     17.81392     23.7307
+------------------------------------------------------------------------------
+
+. estimates store cluster_linear
+
+. predict double fit_cluster_linear, xb
+
+. calc_metrics, fitvar(fit_cluster_linear) yvar(outcome_index) truevar(true_ind
+> ex)
+
+. post `diag' ("clustered") ("Linear regression") (r(r2)) (r(rmse_obs)) (r(rmse
+> _true))
+
+. local rt_lin : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress kernel outcome_index cluster_score
+
+. predict double fit_cluster_np, mean
+
+. calc_metrics, fitvar(fit_cluster_np) yvar(outcome_index) truevar(true_index)
+
+. post `diag' ("clustered") ("npregress kernel") (r(r2)) (r(rmse_obs)) (r(rmse_
+> true))
+
+. local rt_np : di %5.3f r(rmse_true)
+
+. 
+. quietly npregress series outcome_index cluster_score
+
+. predict double fit_cluster_series, mean
+
+. calc_metrics, fitvar(fit_cluster_series) yvar(outcome_index) truevar(true_ind
+> ex)
+
+. post `diag' ("clustered") ("npregress series") (r(r2)) (r(rmse_obs)) (r(rmse_
+> true))
+
+. local rt_series : di %5.3f r(rmse_true)
+
+. 
+. nnsreg outcome_index cluster_score, order(3) method(connect) partition(xy) //
+> /
+>     noplot generate(fit_cluster_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable: cluster_score
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        260
+R-squared:            0.9758
+Root MSE:             1.5124
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+outcome_in~x | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   1.396872   .2888911     4.84   0.000     .8278453      1.9659
+       knot1 |   .4224423   .4982775     0.85   0.397    -.5590119    1.403897
+       knot2 |  -1.484511   .4403356    -3.37   0.001    -2.351838   -.6171849
+       knot3 |  -1.285673   .3715855    -3.46   0.001    -2.017583   -.5537634
+       knot4 |  -1.420742   .2995172    -4.74   0.000    -2.010699   -.8307845
+       knot5 |  -.0550831   .4607551    -0.12   0.905    -.9626297    .8524635
+       knot6 |   2.929418   1.047034     2.80   0.006     .8670818    4.991754
+       knot7 |   1.156755   1.414733     0.82   0.414    -1.629836    3.943345
+       knot8 |   2.060206   1.036618     1.99   0.048     .0183861    4.102026
+       knot9 |  -2.319759   .5643275    -4.11   0.000    -3.431312   -1.208207
+      knot10 |  -.5711868   .3981212    -1.43   0.153    -1.355364    .2129901
+      knot11 |  -.6732406   .2810833    -2.40   0.017    -1.226889   -.1195925
+      knot12 |  -.9015642   .2778985    -3.24   0.001    -1.448939   -.3541891
+      knot13 |   1.045925   1.333838     0.78   0.434    -1.581327    3.673177
+       _cons |  -.0612236   5.253465    -0.01   0.991    -10.40894     10.2865
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store cluster_conn_o3
+
+. calc_metrics, fitvar(fit_cluster_conn_o3) yvar(outcome_index) truevar(true_in
+> dex)
+
+. post `diag' ("clustered") ("NNS connect xy o3") (r(r2)) (r(rmse_obs)) (r(rmse
+> _true))
+
+. local rt_conn : di %5.3f r(rmse_true)
+
+. 
+. nnsreg outcome_index cluster_score, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable: cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        260
+R-squared:            0.9836
+Root MSE:             1.2464
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |    1.49329   .2380898     6.27   0.000     1.024326    1.962254
+       knot1 |   .2850686   .4106557     0.69   0.488    -.5237974    1.093935
+       knot2 |   -1.19777   .3629028    -3.30   0.001    -1.912577   -.4829623
+       knot3 |  -.8877236   .3062424    -2.90   0.004    -1.490927   -.2845198
+       knot4 |  -2.724724   .2468473   -11.04   0.000    -3.210938   -2.238511
+       knot5 |   .6646012   .3797316     1.75   0.081    -.0833538    1.412556
+       knot6 |   3.914031   .8629135     4.54   0.000     2.214355    5.613706
+       knot7 |     .51267   1.165953     0.44   0.661      -1.7839     2.80924
+       knot8 |   2.285455   .8543291     2.68   0.008     .6026877    3.968222
+       knot9 |  -3.194128   .4650908    -6.87   0.000    -4.110214   -2.278041
+      knot10 |  -.3304918   .3281118    -1.01   0.315    -.9767716     .315788
+      knot11 |  -.2686868    .231655    -1.16   0.247    -.7249762    .1876026
+      knot12 |  -1.255661   .2290302    -5.48   0.000     -1.70678   -.8045413
+      knot13 |  -1.442461   1.099283    -1.31   0.191    -3.607712    .7227897
+       _cons |  -1.914538   4.329646    -0.44   0.659    -10.44262     6.61354
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o3
+
+. calc_metrics, fitvar(fit_cluster_ols_o3) yvar(outcome_index) truevar(true_ind
+> ex)
+
+. post `diag' ("clustered") ("NNS OLS xy o3") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. local rt_ols : di %5.3f r(rmse_true)
+
+. 
+. nnsreg outcome_index cluster_score, order(4) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o4)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable: cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                4
+Number of obs:        260
+R-squared:            0.9870
+Root MSE:             1.1688
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   .3787729   .6474892     0.58   0.559    -.8972704    1.654816
+       knot1 |    1.88389   1.115879     1.69   0.093    -.3152356    4.083016
+       knot2 |  -.8505194   2.187646    -0.39   0.698    -5.161836    3.460797
+       knot3 |   .8080764   2.402771     0.34   0.737      -3.9272    5.543353
+       knot4 |  -2.265768   2.028316    -1.12   0.265    -6.263085    1.731549
+       knot5 |   2.281661   2.455189     0.93   0.354    -2.556918    7.120239
+       knot6 |   -.567791   5.006855    -0.11   0.910    -10.43508    9.299499
+       knot7 |  -1.101022   4.470738    -0.25   0.806    -9.911758    7.709713
+       knot8 |  -.9696889   2.328555    -0.42   0.677    -5.558703    3.619325
+       knot9 |   .8356761   2.121015     0.39   0.694    -3.344328     5.01568
+      knot10 |  -1.862501   2.164579    -0.86   0.390    -6.128358    2.403356
+      knot11 |   .7854957   3.246263     0.24   0.809    -5.612098     7.18309
+      knot12 |  -2.061512   1.751317    -1.18   0.240    -5.512932    1.389907
+      knot13 |  -.6167371   .7512282    -0.82   0.413    -2.097225    .8637505
+      knot14 |  -.0227682   1.146402    -0.02   0.984    -2.282047    2.236511
+      knot15 |   2.209007   1.677898     1.32   0.189    -1.097722    5.515735
+      knot16 |   1.986862   1.601036     1.24   0.216    -1.168389    5.142114
+      knot17 |   6.934796   88.32635     0.08   0.937    -167.1349    181.0045
+      knot18 |  -7.803889   89.89823    -0.09   0.931    -184.9714    169.3636
+      knot19 |   3.391302   4.742242     0.72   0.475    -5.954501     12.7371
+      knot20 |   19.10502   23.48392     0.81   0.417    -27.17607    65.38611
+      knot21 |  -25.29688   26.18522    -0.97   0.335    -76.90157    26.30781
+      knot22 |   12.84015   10.31481     1.24   0.215    -7.487834    33.16813
+      knot23 |  -10.23347   8.801032    -1.16   0.246    -27.57815    7.111223
+      knot24 |   4.713377    3.75161     1.26   0.210    -2.680132    12.10689
+      knot25 |  -2.156826   2.154738    -1.00   0.318     -6.40329    2.089637
+      knot26 |   3.476401   2.150815     1.62   0.107    -.7623308    7.715133
+      knot27 |  -5.105989   1.244673    -4.10   0.000    -7.558935   -2.653042
+      knot28 |   .4402173   1.074996     0.41   0.683    -1.678337    2.558772
+      knot29 |   2.506386   6.202651     0.40   0.687    -9.717527     14.7303
+      knot30 |  -3.400781   5.801629    -0.59   0.558    -14.83438    8.032816
+      knot31 |    13.6358   9.339791     1.46   0.146    -4.770649    32.04225
+      knot32 |  -13.39774   9.004594    -1.49   0.138     -31.1436    4.348125
+      knot33 |   -2.60939   1.875791    -1.39   0.166    -6.306117    1.087337
+      knot34 |   2.507271   1.837502     1.36   0.174    -1.113997    6.128539
+      knot35 |  -1.842536   .9064648    -2.03   0.043    -3.628957   -.0561145
+      knot36 |   1.163018   1.127108     1.03   0.303    -1.058237    3.384273
+      knot37 |  -2.249095   1.841511    -1.22   0.223    -5.878263    1.380074
+       _cons |   16.71693   10.93445     1.53   0.128    -4.832212    38.26608
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o4
+
+. calc_metrics, fitvar(fit_cluster_ols_o4) yvar(outcome_index) truevar(true_ind
+> ex)
+
+. post `diag' ("clustered") ("NNS OLS xy o4") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. 
+. nnsreg outcome_index cluster_score, order(5) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o5)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable: cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                5
+Number of obs:        260
+R-squared:            0.9891
+Root MSE:             1.1610
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |  -2.517608    1.62464    -1.55   0.123    -5.722474     .687259
+       knot1 |    21.6695   9.474729     2.29   0.023     2.979055    40.35994
+       knot2 |  -22.66729   10.18087    -2.23   0.027    -42.75072   -2.583861
+       knot3 |   5.695721   3.135267     1.82   0.071    -.4891038    11.88055
+       knot4 |   5.687028    9.39325     0.61   0.546    -12.84269    24.21674
+       knot5 |  -8.354118    10.6929    -0.78   0.436    -29.44761    12.73937
+       knot6 |   8.252934   6.862151     1.20   0.231    -5.283775    21.78964
+       knot7 |  -8.709292   9.146258    -0.95   0.342    -26.75178     9.33319
+       knot8 |   1.790513   5.217493     0.34   0.732     -8.50184    12.08287
+       knot9 |  -3.135229   6.251865    -0.50   0.617    -15.46805    9.197592
+      knot10 |   31.61217   41.60946     0.76   0.448    -50.46926    113.6936
+      knot11 |  -28.19921   37.71924    -0.75   0.456    -102.6066    46.20813
+      knot12 |     33.921   47.73292     0.71   0.478    -60.23994    128.0819
+      knot13 |          0  (omitted)
+      knot14 |   -34.2069   49.93176    -0.69   0.494    -132.7054    64.29163
+      knot15 |          0  (omitted)
+      knot16 |  -2.972514   6.137441    -0.48   0.629    -15.07962    9.134588
+      knot17 |    5.80704   7.708787     0.75   0.452    -9.399797    21.01388
+      knot18 |  -2.384261   8.425003    -0.28   0.777    -19.00395    14.23543
+      knot19 |   1.980687   8.176791     0.24   0.809    -14.14936    18.11074
+      knot20 |  -10.03258   8.560429    -1.17   0.243    -26.91942    6.854261
+      knot21 |   26.65963   12.86494     2.07   0.040     1.281433    52.03782
+      knot22 |  -44.85149   26.26032    -1.71   0.089    -96.65425     6.95126
+      knot23 |   28.24505   23.26241     1.21   0.226    -17.64383    74.13393
+      knot24 |  -2.317438   8.674242    -0.27   0.790    -19.42879    14.79392
+      knot25 |  -7.276673   12.52003    -0.58   0.562    -31.97447    17.42112
+      knot26 |   5.200605   12.15672     0.43   0.669     -18.7805    29.18171
+      knot27 |  -2.083723   4.707021    -0.44   0.659    -11.36909    7.201642
+      knot28 |   3.587673   5.219064     0.69   0.493    -6.707781    13.88313
+      knot29 |  -3.409125   2.240324    -1.52   0.130    -7.828528    1.010278
+      knot30 |   -.100998   .8816302    -0.11   0.909    -1.840157    1.638161
+      knot31 |   .0963448   4.305095     0.02   0.982    -8.396156    8.588845
+      knot32 |  -.8313063   5.258631    -0.16   0.875    -11.20481    9.542199
+      knot33 |   3.436273   3.949016     0.87   0.385    -4.353803    11.22635
+      knot34 |  -2.842182   7.639551    -0.37   0.710    -17.91244    12.22807
+      knot35 |   54.72648   111.5966     0.49   0.624     -165.416     274.869
+      knot36 |  -54.03344   107.1572    -0.50   0.615    -265.4185    157.3516
+      knot37 |    15.1933   9.809469     1.55   0.123    -4.157469    34.54408
+      knot38 |          0  (omitted)
+      knot39 |          0  (omitted)
+      knot40 |  -15.19659   18.09379    -0.84   0.402    -50.88953    20.49636
+      knot41 |  -3.393318   22.37171    -0.15   0.880    -47.52516    40.73853
+      knot42 |   14.18356   18.14058     0.78   0.435    -21.60169    49.96881
+      knot43 |  -26.08909   23.29271    -1.12   0.264    -72.03775    19.85957
+      knot44 |   21.29677   17.71689     1.20   0.231    -13.65268    56.24623
+      knot45 |   17.68644   22.94852     0.77   0.442    -27.58324    62.95612
+      knot46 |  -23.22228   25.85116    -0.90   0.370    -74.21791    27.77334
+      knot47 |   -.675114   12.64359    -0.05   0.957    -25.61666    24.26643
+      knot48 |    67.7891   43.86766     1.55   0.124    -18.74701    154.3252
+      knot49 |          0  (omitted)
+      knot50 |  -69.08224   37.99622    -1.82   0.071     -144.036    5.871488
+      knot51 |    13.2005   6.194738     2.13   0.034     .9803718    25.42063
+      knot52 |  -11.57656   11.13386    -1.04   0.300     -33.5399    10.38679
+      knot53 |    6.24837   8.864887     0.70   0.482    -11.23906     23.7358
+      knot54 |  -46.66221   32.82665    -1.42   0.157    -111.4181    18.09369
+      knot55 |          0  (omitted)
+      knot56 |    47.5678   32.76137     1.45   0.148    -17.05933    112.1949
+      knot57 |  -4.207426   .9764202    -4.31   0.000    -6.133574   -2.281278
+      knot58 |   1.092625   .7766362     1.41   0.161     -.439416    2.624667
+      knot59 |  -1.102163   1.559855    -0.71   0.481     -4.17923    1.974905
+      knot60 |   57.08319   81.36246     0.70   0.484    -103.4175    217.5839
+      knot61 |  -58.84803   88.40877    -0.67   0.506    -233.2487    115.5526
+      knot62 |   1.631748    9.74249     0.17   0.867     -17.5869    20.85039
+      knot63 |   16.88343   10.60334     1.59   0.113    -4.033394    37.80025
+      knot64 |  -17.87008   11.16583    -1.60   0.111     -39.8965     4.15634
+      knot65 |    2.21319   3.717794     0.60   0.552    -5.120763    9.547142
+      knot66 |  -1.575487   15.24038    -0.10   0.918    -31.63961    28.48864
+      knot67 |  -1.455239   14.04636    -0.10   0.918    -29.16397    26.25349
+      knot68 |    3.55209   15.40707     0.23   0.818    -26.84087    33.94505
+      knot69 |          0  (omitted)
+      knot70 |  -.5996507   16.28282    -0.04   0.971    -32.72017    31.52087
+      knot71 |  -.7582419   3.335426    -0.23   0.820    -7.337912    5.821428
+      knot72 |  -4.090671   1.812193    -2.26   0.025    -7.665516   -.5158264
+      knot73 |   10.63343   7.129932     1.49   0.138    -3.431522    24.69838
+      knot74 |  -8.421026   6.827923    -1.23   0.219    -21.89021    5.048163
+      knot75 |   2.434605   4.630456     0.53   0.600    -6.699722    11.56893
+      knot76 |   -44.3974   25.37745    -1.75   0.082    -94.45855    5.663754
+      knot77 |   63.55066   38.47595     1.65   0.100    -12.34941    139.4507
+       _cons |   62.62695    26.1763     2.39   0.018     10.98994     114.264
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o5
+
+. calc_metrics, fitvar(fit_cluster_ols_o5) yvar(outcome_index) truevar(true_ind
+> ex)
+
+. post `diag' ("clustered") ("NNS OLS xy o5") (r(r2)) (r(rmse_obs)) (r(rmse_tru
+> e))
+
+. 
+. // Figure: 2x2 small multiples, one fitted method per panel.
+. fitpanel, yvar(outcome_index) xvar(cluster_score) truevar(true_index) ///
+>     fitvar(fit_cluster_linear) ptitle("A. Linear regression") ///
+>     psub("True-curve RMSE = `rt_lin'") gname(cl_p1) ylab(0(10)40)
+
+. fitpanel, yvar(outcome_index) xvar(cluster_score) truevar(true_index) ///
+>     fitvar(fit_cluster_np) ptitle("B. npregress kernel") ///
+>     psub("True-curve RMSE = `rt_np'") gname(cl_p2) ylab(0(10)40)
+
+. fitpanel, yvar(outcome_index) xvar(cluster_score) truevar(true_index) ///
+>     fitvar(fit_cluster_conn_o3) ptitle("C. NNS connect, order(3)") ///
+>     psub("True-curve RMSE = `rt_conn'") gname(cl_p3) ylab(0(10)40)
+
+. fitpanel, yvar(outcome_index) xvar(cluster_score) truevar(true_index) ///
+>     fitvar(fit_cluster_ols_o3) ptitle("D. NNS OLS, order(3)") ///
+>     psub("True-curve RMSE = `rt_ols'") gname(cl_p4) ylab(0(10)40)
+
+. 
+. graph combine cl_p1 cl_p2 cl_p3 cl_p4, cols(2) imargin(small) ///
+>     l1title("Outcome Index", size(small)) ///
+>     b1title("Clustered Index Score", size(small)) ///
+>     note("Gray dots: simulated observations.  Black line: true curve.  Orange
+>  line: fitted values.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7.5) ysize(6) name(cluster_fits, replace)
+
+. graph export "manuscript/fig_cluster_fits.pdf", replace
+file manuscript/fig_cluster_fits.pdf saved as PDF format
+
+. graph export "manuscript/fig_cluster_fits.png", replace width(2200)
+file manuscript/fig_cluster_fits.png written in PNG format
+
+. 
+. // Sensitivity figure: partition depth (order) against the kernel benchmark.
+. twoway ///
+>     (scatter outcome_index cluster_score, mcolor("108 122 141%35") msymbol(Oh
+> ) msize(tiny)) ///
+>     (line true_index cluster_score, sort lcolor(black) lwidth(medthick)) ///
+>     (line fit_cluster_np cluster_score, sort lcolor("108 122 141") lpattern(d
+> ot) lwidth(medthin)) ///
+>     (line fit_cluster_ols_o3 cluster_score, sort lcolor("212 69 0") lpattern(
+> dash) lwidth(medthick)) ///
+>     (line fit_cluster_ols_o4 cluster_score, sort lcolor("43 108 176") lpatter
+> n(longdash) lwidth(medthin)) ///
+>     (line fit_cluster_ols_o5 cluster_score, sort lcolor("0 109 44") lpattern(
+> shortdash) lwidth(medthin)), ///
+>     ytitle("Outcome Index", size(small)) ///
+>     xtitle("Clustered Index Score", size(small)) ///
+>     ylabel(0(10)40, labsize(small) angle(horizontal)) xlabel(, labsize(small)
+> ) ///
+>     legend(order(2 "True curve" 3 "npregress" 4 "NNS OLS(3)" 5 "NNS OLS(4)" /
+> //
+>         6 "NNS OLS(5)") rows(1) size(small) position(6) region(lcolor(none)))
+>  ///
+>     graphregion(color(white)) xsize(7) ysize(4.5) name(cluster_sensitivity, r
+> eplace)
+
+. graph export "manuscript/fig_cluster_sensitivity.pdf", replace
+file manuscript/fig_cluster_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_cluster_sensitivity.png", replace width(2000)
+file manuscript/fig_cluster_sensitivity.png written in PNG format
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 5. Monte Carlo study: repeat the comparison across `MCREPS' fresh draws
+. //    A single simulated dataset can flatter any method by luck of the draw.
+. //    Here every design is redrawn `MCREPS' times (new x values and new
+. //    noise), each method is refit, and RMSE against the known true curve is
+. //    recorded.  Seeds are 10000 + 3*(rep-1) + design index, so every draw is
+. //    reproducible.
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Section 5: Monte Carlo study (`MCREPS' replications) ==="
+
+=== Section 5: Monte Carlo study (100 replications) ===
+
+. 
+. tempname mc
+
+. postfile `mc' str14 design int rep str8 mcode str24 model ///
+>     double(r2 rmse_obs rmse_true) using "examples/mc_results.dta", replace
+
+. 
+. local np_failures = 0
+
+. local series_failures = 0
+
+. local nns_failures = 0
+
+. timer clear 1
+
+. timer on 1
+
+. forvalues r = 1/`MCREPS' {
+  2.     local dnum = 0
+  3.     foreach d in education water clustered {
+  4.         local ++dnum
+  5.         if "`d'" == "education" {
+  6.             local y staar_pass
+  7.             local x spend_pupil
+  8.             local t true_staar
+  9.         }
+ 10.         else if "`d'" == "water" {
+ 11.             local y water_loss
+ 12.             local x pipe_age
+ 13.             local t true_loss
+ 14.         }
+ 15.         else {
+ 16.             local y outcome_index
+ 17.             local x cluster_score
+ 18.             local t true_index
+ 19.         }
+ 20. 
+.         nns_simdata, design(`d') seed(`=10000 + 3*(`r'-1) + `dnum'')
+ 21. 
+.         quietly regress `y' `x'
+ 22.         quietly predict double f_lin, xb
+ 23.         calc_metrics, fitvar(f_lin) yvar(`y') truevar(`t')
+ 24.         post `mc' ("`d'") (`r') ("linear") ("Linear regression") ///
+>             (r(r2)) (r(rmse_obs)) (r(rmse_true))
+ 25. 
+.         capture {
+ 26.             quietly npregress kernel `y' `x'
+ 27.             quietly predict double f_np, mean
+ 28.         }
+ 29.         if _rc == 0 {
+ 30.             calc_metrics, fitvar(f_np) yvar(`y') truevar(`t')
+ 31.             post `mc' ("`d'") (`r') ("kernel") ("npregress kernel") ///
+>                 (r(r2)) (r(rmse_obs)) (r(rmse_true))
+ 32.         }
+ 33.         else {
+ 34.             local ++np_failures
+ 35.             post `mc' ("`d'") (`r') ("kernel") ("npregress kernel") (.) (.
+> ) (.)
+ 36.         }
+ 37. 
+.         capture {
+ 38.             quietly npregress series `y' `x'
+ 39.             quietly predict double f_series, mean
+ 40.         }
+ 41.         if _rc == 0 {
+ 42.             calc_metrics, fitvar(f_series) yvar(`y') truevar(`t')
+ 43.             post `mc' ("`d'") (`r') ("series") ("npregress series") ///
+>                 (r(r2)) (r(rmse_obs)) (r(rmse_true))
+ 44.         }
+ 45.         else {
+ 46.             local ++series_failures
+ 47.             post `mc' ("`d'") (`r') ("series") ("npregress series") (.) (.
+> ) (.)
+ 48.         }
+ 49. 
+.         local i = 0
+ 50.         foreach spec in "order(3) method(connect)" "order(3) method(ols)" 
+> ///
+>             "order(4) method(ols)" {
+ 51.             local ++i
+ 52.             local mcode : word `i' of conn3 ols3 ols4
+ 53.             local mname : word `i' of "NNS connect, order(3)" ///
+>                 "NNS OLS, order(3)" "NNS OLS, order(4)"
+ 54.             capture {
+ 55.                 quietly nnsreg `y' `x', `spec' partition(xy) ///
+>                     noplot generate(f_nns`i')
+ 56.             }
+ 57.             if _rc == 0 {
+ 58.                 calc_metrics, fitvar(f_nns`i') yvar(`y') truevar(`t')
+ 59.                 post `mc' ("`d'") (`r') ("`mcode'") (`"`mname'"') ///
+>                     (r(r2)) (r(rmse_obs)) (r(rmse_true))
+ 60.             }
+ 61.             else {
+ 62.                 local ++nns_failures
+ 63.                 post `mc' ("`d'") (`r') ("`mcode'") (`"`mname'"') (.) (.) 
+> (.)
+ 64.                 di as error "  nnsreg failed: rep `r', design `d', `spec'"
+ 65.             }
+ 66.         }
+ 67.     }
+ 68.     if mod(`r', 10) == 0 di as text "  Monte Carlo replication `r' of `MCR
+> EPS'"
+ 69. }
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(164 missing values generated)
+(164 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(171 missing values generated)
+(171 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(183 missing values generated)
+(183 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(152 missing values generated)
+(152 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 10 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(158 missing values generated)
+(158 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(166 missing values generated)
+(166 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(172 missing values generated)
+(172 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(157 missing values generated)
+(157 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(180 missing values generated)
+(180 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(161 missing values generated)
+(161 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(169 missing values generated)
+(169 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 20 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(179 missing values generated)
+(179 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(155 missing values generated)
+(155 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(178 missing values generated)
+(178 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(178 missing values generated)
+(178 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(169 missing values generated)
+(169 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(167 missing values generated)
+(167 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(164 missing values generated)
+(164 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(161 missing values generated)
+(161 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 30 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(167 missing values generated)
+(167 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(155 missing values generated)
+(155 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(164 missing values generated)
+(164 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(162 missing values generated)
+(162 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(153 missing values generated)
+(153 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(150 missing values generated)
+(150 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 40 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(178 missing values generated)
+(178 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(160 missing values generated)
+(160 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(172 missing values generated)
+(172 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(163 missing values generated)
+(163 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(169 missing values generated)
+(169 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(186 missing values generated)
+(186 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(160 missing values generated)
+(160 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(169 missing values generated)
+(169 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(167 missing values generated)
+(167 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 50 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(181 missing values generated)
+(181 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(157 missing values generated)
+(157 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(161 missing values generated)
+(161 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(166 missing values generated)
+(166 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(156 missing values generated)
+(156 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(157 missing values generated)
+(157 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(172 missing values generated)
+(172 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(182 missing values generated)
+(182 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 60 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(165 missing values generated)
+(165 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(167 missing values generated)
+(167 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(170 missing values generated)
+(170 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(171 missing values generated)
+(171 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(186 missing values generated)
+(186 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(162 missing values generated)
+(162 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(162 missing values generated)
+(162 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(159 missing values generated)
+(159 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 70 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(172 missing values generated)
+(172 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(164 missing values generated)
+(164 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(156 missing values generated)
+(156 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(183 missing values generated)
+(183 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(164 missing values generated)
+(164 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(169 missing values generated)
+(169 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 80 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(165 missing values generated)
+(165 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(178 missing values generated)
+(178 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(191 missing values generated)
+(191 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(160 missing values generated)
+(160 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(187 missing values generated)
+(187 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(173 missing values generated)
+(173 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(2 real changes made)
+  Monte Carlo replication 90 of 100
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(168 missing values generated)
+(168 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(188 missing values generated)
+(188 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(172 missing values generated)
+(172 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(161 missing values generated)
+(161 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(170 missing values generated)
+(170 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(1 real change made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(178 missing values generated)
+(178 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(174 missing values generated)
+(174 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(175 missing values generated)
+(175 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(165 missing values generated)
+(165 real changes made)
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+Number of observations (_N) was 0, now 250.
+(0 real changes made)
+(0 real changes made)
+Number of observations (_N) was 0, now 300.
+(176 missing values generated)
+(176 real changes made)
+(0 real changes made)
+(1 real change made)
+Number of observations (_N) was 0, now 260.
+(0 real changes made)
+  Monte Carlo replication 100 of 100
+
+. timer off 1
+
+. postclose `mc'
+
+. timer list 1
+   1:     90.30 /        1 =      90.2990
+
+. di as text "npregress kernel failures across all replications: `np_failures'"
+npregress kernel failures across all replications: 0
+
+. di as text "npregress series failures across all replications: `series_failur
+> es'"
+npregress series failures across all replications: 0
+
+. di as text "nnsreg failures across all replications: `nns_failures'"
+nnsreg failures across all replications: 0
+
+. // Certification: nnsreg must fit every replication draw without error.
+. assert `nns_failures' == 0
+
+. assert `np_failures' == 0
+
+. assert `series_failures' == 0
+
+. 
+. // Summary table: mean and SD of true-curve RMSE by design and model, plus
+. // the share of replications in which each model beats npregress kernel.
+. use "examples/mc_results.dta", clear
+
+. preserve
+
+. keep if mcode == "kernel"
+(1,500 observations deleted)
+
+. keep design rep rmse_true
+
+. rename rmse_true rmse_true_kernel
+
+. tempfile kern
+
+. save `kern'
+file /var/folders/5n/6s4drlks0734vkn04zv4l0tr0000gp/T//St08384.000002 saved
+    as .dta format
+
+. restore
+
+. merge m:1 design rep using `kern', nogenerate
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                             0
+    Matched                             1,800  
+    -----------------------------------------
+
+. gen byte beats_kernel = rmse_true < rmse_true_kernel ///
+>     if !missing(rmse_true, rmse_true_kernel) & mcode != "kernel"
+(300 missing values generated)
+
+. 
+. gen msort = cond(mcode == "linear", 1, cond(mcode == "kernel", 2, ///
+>     cond(mcode == "series", 3, cond(mcode == "conn3", 4, ///
+>     cond(mcode == "ols3", 5, 6)))))
+
+. 
+. collapse (mean) mean_rmse_true = rmse_true (sd) sd_rmse_true = rmse_true ///
+>     (mean) mean_rmse_obs = rmse_obs (mean) share_beats_kernel = beats_kernel 
+> ///
+>     (count) reps = rmse_true, by(design mcode model msort)
+
+. sort design msort
+
+. format mean_rmse_true sd_rmse_true mean_rmse_obs %6.3f
+
+. format share_beats_kernel %5.2f
+
+. list design model mean_rmse_true sd_rmse_true share_beats_kernel reps, ///
+>     sepby(design) noobs
+
+  +---------------------------------------------------------------------------+
+  |    design                   model   mean_r~e   sd_rms~e   share_~l   reps |
+  |---------------------------------------------------------------------------|
+  | clustered       Linear regression      9.172      0.301       0.00    100 |
+  | clustered        npregress kernel      0.716      0.233          .    100 |
+  | clustered        npregress series      0.467      0.333       0.89    100 |
+  | clustered   NNS connect, order(3)      1.114      0.252       0.10    100 |
+  | clustered       NNS OLS, order(3)      0.540      0.091       0.67    100 |
+  | clustered       NNS OLS, order(4)      0.496      0.067       0.80    100 |
+  |---------------------------------------------------------------------------|
+  | education       Linear regression      5.512      0.169       0.00    100 |
+  | education        npregress kernel      0.802      0.194          .    100 |
+  | education        npregress series      0.749      0.219       0.62    100 |
+  | education   NNS connect, order(3)      3.168      0.596       0.00    100 |
+  | education       NNS OLS, order(3)      0.887      0.180       0.28    100 |
+  | education       NNS OLS, order(4)      1.290      0.180       0.00    100 |
+  |---------------------------------------------------------------------------|
+  |     water       Linear regression      5.116      0.132       0.00    100 |
+  |     water        npregress kernel      0.426      0.104          .    100 |
+  |     water        npregress series      0.416      0.082       0.52    100 |
+  |     water   NNS connect, order(3)      1.531      0.273       0.00    100 |
+  |     water       NNS OLS, order(3)      0.483      0.095       0.23    100 |
+  |     water       NNS OLS, order(4)      0.784      0.100       0.00    100 |
+  +---------------------------------------------------------------------------+
+
+. export delimited design model mean_rmse_true sd_rmse_true mean_rmse_obs ///
+>     share_beats_kernel reps using "manuscript/table_mc_summary.csv", replace
+file manuscript/table_mc_summary.csv saved
+
+. 
+. // Figure: distribution of true-curve RMSE across replications.  Linear
+. // regression is omitted (its RMSE is several times larger and would
+. // compress the boxes); it appears in the summary table instead.
+. use "examples/mc_results.dta", clear
+
+. drop if mcode == "linear" | missing(rmse_true)
+(300 observations deleted)
+
+. gen mnum = cond(mcode == "kernel", 1, cond(mcode == "series", 2, ///
+>     cond(mcode == "conn3", 3, cond(mcode == "ols3", 4, 5))))
+
+. label define mnum 1 "np kernel" 2 "np series" 3 "NNS conn(3)" ///
+>     4 "NNS OLS(3)" 5 "NNS OLS(4)"
+
+. label values mnum mnum
+
+. gen dnum = cond(design == "education", 1, cond(design == "water", 2, 3))
+
+. label define dnum 1 "Education: smooth S-curve" 2 "Water: threshold" ///
+>     3 "Clustered: peak and dip"
+
+. label values dnum dnum
+
+. 
+. graph box rmse_true, over(mnum, label(angle(45) labsize(small))) ///
+>     by(dnum, yrescale cols(3) note("") graphregion(color(white))) ///
+>     ytitle("RMSE against the true curve", size(small)) ///
+>     ylabel(, labsize(small) angle(horizontal)) ///
+>     box(1, color("27 45 85")) ///
+>     xsize(9) ysize(4) name(mc_rmse, replace)
+
+. graph export "manuscript/fig_mc_rmse.pdf", replace
+file manuscript/fig_mc_rmse.pdf saved as PDF format
+
+. graph export "manuscript/fig_mc_rmse.png", replace width(2400)
+file manuscript/fig_mc_rmse.png written in PNG format
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // 6. Single-run diagnostics table (manuscript table 1)
+. // --------------------------------------------------------------------------
+> -
+. postclose `diag'
+
+. 
+. use "examples/model_diagnostics.dta", clear
+
+. format r2 %6.3f
+
+. format rmse_obs rmse_true %6.3f
+
+. export delimited using "manuscript/table_model_diagnostics.csv", replace
+file manuscript/table_model_diagnostics.csv saved
+
+. list, sepby(example)
+
+     +-------------------------------------------------------------+
+     |   example               model      r2   rmse_obs   rmse_t~e |
+     |-------------------------------------------------------------|
+  1. | education   Linear regression   0.864      6.611      5.460 |
+  2. | education    npregress kernel   0.950      4.015      0.923 |
+  3. | education    npregress series   0.950      4.007      0.811 |
+  4. | education   NNS connect xy o2   0.924      4.939      3.210 |
+  5. | education   NNS connect xy o3   0.927      4.828      3.283 |
+  6. | education    NNS median xy o3   0.938      4.460      2.350 |
+  7. | education       NNS OLS xy o3   0.949      4.027      0.784 |
+     |-------------------------------------------------------------|
+  8. |     water   Linear regression   0.757      5.502      5.121 |
+  9. |     water    npregress kernel   0.962      2.181      0.865 |
+ 10. |     water    npregress series   0.953      2.418      0.401 |
+ 11. |     water   NNS connect xy o2   0.945      2.622      1.132 |
+ 12. |     water   NNS connect xy o3   0.938      2.776      1.460 |
+ 13. |     water    NNS median xy o3   0.929      2.979      1.804 |
+ 14. |     water       NNS OLS xy o3   0.954      2.389      0.372 |
+ 15. |     water    NNS OLS xonly o3   0.949      2.522      0.883 |
+     |-------------------------------------------------------------|
+ 16. | clustered   Linear regression   0.042      9.234      9.219 |
+ 17. | clustered    npregress kernel   0.985      1.162      0.484 |
+ 18. | clustered    npregress series   0.985      1.138      0.392 |
+ 19. | clustered   NNS connect xy o3   0.976      1.468      0.999 |
+ 20. | clustered       NNS OLS xy o3   0.984      1.210      0.492 |
+ 21. | clustered       NNS OLS xy o4   0.987      1.078      0.452 |
+ 22. | clustered       NNS OLS xy o5   0.989      0.987      0.596 |
+     +-------------------------------------------------------------+
+
+. 
+. di _n "All tests, comparisons, sensitivity checks, and figures completed succ
+> essfully."
+
+All tests, comparisons, sensitivity checks, and figures completed successfully.
+
+. 
+end of do-file

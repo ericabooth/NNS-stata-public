@@ -1,0 +1,14 @@
+. estimates restore edu_ols
+(results edu_ols are active now)
+{\smallskip}
+. lincom spend_pupil + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 ///
+>     + knot7 + knot8 + knot9
+{\smallskip}
+ ( 1)  spend_pupil + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 +
+       knot8 + knot9 = 0
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+  staar_pass {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+         (1) {\VBAR}   .0645397   .7393695     0.09   0.931    -1.391973    1.521053
+\HLI{13}{\BOTT}\HLI{64}

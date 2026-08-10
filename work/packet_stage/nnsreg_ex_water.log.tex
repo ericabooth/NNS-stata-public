@@ -1,0 +1,26 @@
+. use texas_water, clear
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+{\smallskip}
+. quietly nnsreg water_loss pipe_age, order(3) method(ols) noplot
+{\smallskip}
+. lincom pipe_age
+{\smallskip}
+ ( 1)  pipe_age = 0
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+  water_loss {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+         (1) {\VBAR}  -.1292191   .1497085    -0.86   0.389    -.4238763    .1654382
+\HLI{13}{\BOTT}\HLI{64}
+{\smallskip}
+. lincom pipe_age + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 ///
+>     + knot7 + knot8 + knot9
+{\smallskip}
+ ( 1)  pipe_age + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 + knot8
+       + knot9 = 0
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+  water_loss {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+         (1) {\VBAR}   1.209637   .0946187    12.78   0.000     1.023408    1.395866
+\HLI{13}{\BOTT}\HLI{64}

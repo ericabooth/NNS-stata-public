@@ -1,0 +1,36 @@
+. use texas_education, clear
+(Texas School District Operational Funding and Achievement (Simulated))
+{\smallskip}
+. nnsreg staar_pass spend_pupil, order(2) method(ols) noplot slopes
+{\smallskip}
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        250
+R-squared:            0.9434
+Root MSE:             4.2994
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+  staar_pass {\VBAR} Coefficient  Std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+ spend_pupil {\VBAR}   .3637342   .4431866     0.82   0.413    -.5092077    1.236676
+       knot1 {\VBAR}    7.75409   .6855804    11.31   0.000     6.403706    9.104473
+       knot2 {\VBAR}  -4.984399   .5169886    -9.64   0.000    -6.002708    -3.96609
+       knot3 {\VBAR}  -3.463223    .599266    -5.78   0.000    -4.643594   -2.282852
+       _cons {\VBAR}   39.18212    3.16834    12.37   0.000     32.94146    45.42278
+\HLI{13}{\BOTT}\HLI{64}
+{\smallskip}
+Per-segment slopes (cumulative), conditional on the NNS knots
+\HLI{73}
+ segment                 x range       slope   std. err.       n
+\HLI{73}
+       1        5.01 to     8.28      0.3637      0.4432      58
+       2        8.28 to     11.8      8.1178      0.3223      60
+       3        11.8 to     16.4      3.1334      0.2532      67
+       4        16.4 to       20     -0.3298      0.4047      65
+\HLI{73}
+Standard errors are conditional on the data-derived knot locations.

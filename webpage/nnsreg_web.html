@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="format-detection" content="telephone=no">
+<title>nnsreg_web.html</title>
+<style>
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px; line-height: 1.428;
+  margin: 0 auto; padding: 0 15px;
+}
+h1, h2, h3, h4, h5, h6 { margin: 20px 0 10px; }
+h1 { font-size: 28px; } h2 { font-size: 24px; }
+h3 { font-size: 18px; } h4 { font-size: 16px; }
+h5 { font-size: 14px; } h6 { font-size: 12px; }
+a { color: #337AB7; text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; height: auto; }
+ul, ol { padding-left: 30px; }
+pre, code, samp {
+  font-size: 13px;
+  font-family: Courier, monospace;
+}
+code, samp {
+  background-color: #F5F5F5;
+  border-radius: 3px; padding: 3px;
+}
+pre code, pre samp {
+  white-space: pre; background: transparent;
+  border: none; padding: 0;
+}
+pre {
+  line-height: 1.33; background-color: #F5F5F5;
+  border: 1px solid #CCCCCC; border-radius: 3px;
+  padding: 8px; overflow: auto;
+}
+</style>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     webdoc2 default theme header
+     Injected into <head> via:  wdinit myfile, replace
+     (or manually: webdoc init myfile, replace header2(include("header.html")))
+
+     To customise: copy this file, edit freely, then point wdinit at it:
+         wdinit myfile, replace headerfile("my_custom_header.html")
+     ════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Bootstrap 5.3 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+
+<!-- Google Fonts: Inter -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<!-- Bootstrap Icons (chevron for back-to-top button) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+<style>
+/* ── Theme tokens — override here to change the colour scheme ────────────── */
+:root {
+  --wd-primary:    #1B2D55;   /* navbar / headings / accents */
+  --wd-accent:     #D44500;   /* h2 underline, hover highlights */
+  --wd-link:       #2B6CB0;   /* body link colour */
+  --wd-light-bg:   #F5F7FA;   /* code blocks, TOC, accordion bg */
+  --wd-border:     #DEE2E6;
+  --wd-text:       #1A1A2E;
+  --wd-muted:      #6C7A8D;
+  --wd-page-width: 90%;       /* default content width; override with wdwidth command */
+}
+
+/* ── Always reserve scrollbar space; offset anchors below sticky navbar ──── */
+html {
+  overflow-y: scroll;
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;   /* matches navbar height so anchors aren't hidden */
+}
+
+/* ── Base typography ──────────────────────────────────────────────────────── */
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.68;
+  color: var(--wd-text);
+  background-color: #ffffff;
+}
+
+/* ── Navbar ───────────────────────────────────────────────────────────────── */
+.navbar {
+  background-color: var(--wd-primary) !important;
+  padding: 0.55rem 1.5rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+}
+.navbar-brand {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ffffff !important;
+}
+.navbar-toggler        { border-color: rgba(255,255,255,0.4); }
+.navbar-toggler-icon   { filter: invert(1) brightness(2); }
+.navbar-nav .nav-link  {
+  font-size: 0.80rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.78) !important;
+  padding: 0.5rem 1.05rem !important;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+.navbar-nav .nav-link:hover {
+  color: #ffffff !important;
+  border-bottom-color: var(--wd-accent);
+}
+.navbar-nav .nav-link.active {
+  color: #ffffff !important;
+  border-bottom-color: var(--wd-accent);
+  font-weight: 600;
+}
+
+/* ── Navbar dropdowns ─────────────────────────────────────────────────────── */
+.navbar .dropdown-menu {
+  background-color: #ffffff;
+  border: 1px solid var(--wd-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  margin-top: 0.25rem;
+  min-width: 180px;
+}
+.navbar .dropdown-item {
+  font-size: 0.85rem;
+  color: var(--wd-text);
+  padding: 0.45rem 1rem;
+}
+.navbar .dropdown-item:hover {
+  background-color: var(--wd-light-bg);
+  color: var(--wd-primary);
+}
+.navbar .dropdown-toggle::after { vertical-align: 0.1em; }
+
+/* ── Headings ─────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  color: var(--wd-primary);
+  margin-top: 1.75rem;
+  margin-bottom: 0.55rem;
+}
+h1 { font-size: 1.85rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 3px solid var(--wd-accent);
+  padding-bottom: 0.28rem;
+}
+h3 { font-size: 1.12rem; }
+h4 { font-size: 1rem; color: var(--wd-muted); }
+
+/* ── Links ────────────────────────────────────────────────────────────────── */
+a       { color: var(--wd-link);   text-decoration: none; }
+a:hover { color: var(--wd-accent); text-decoration: underline; }
+
+/* ── Stata log blocks ─────────────────────────────────────────────────────── */
+pre.stlog {
+  background-color: var(--wd-light-bg);
+  border: 1px solid var(--wd-border);
+  border-left: 4px solid var(--wd-primary);
+  border-radius: 0 6px 6px 0;
+  padding: 0.9rem 1.2rem;
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  margin-bottom: 1.1rem;
+}
+.stinp { color: var(--wd-primary); font-weight: 600; }
+.stres { color: #145A32; }
+.stcmt { font-style: italic; opacity: 0.55; }
+
+/* ── Bootstrap accordion (button.ado / graphbutton.ado) ───────────────────── */
+.accordion, .accordion-item, .accordion-body { max-width: 100%; }
+.accordion-item {
+  border: 1px solid var(--wd-border);
+  border-radius: 6px !important;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.accordion-button {
+  font-size: 0.82rem;
+  font-weight: 500;
+  background-color: var(--wd-light-bg);
+  color: var(--wd-primary) !important;
+}
+.accordion-button:not(.collapsed) {
+  background-color: var(--wd-primary);
+  color: #ffffff !important;
+  box-shadow: none;
+}
+.accordion-button:not(.collapsed)::after { filter: invert(1) brightness(2); }
+.accordion-body { padding: 1rem 1.2rem; background-color: #ffffff; overflow-x: auto; }
+
+/* ── Lists ────────────────────────────────────────────────────────────────── */
+/* wdlist (dashed) — LaTeX-like em-dash markers via ::before. */
+ul.wd-list-dashed {
+  list-style: none;
+  padding-left: 1.2rem;
+}
+ul.wd-list-dashed > li {
+  position: relative;
+  padding-left: 1.2rem;
+  margin-bottom: 0.15rem;
+}
+ul.wd-list-dashed > li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--wd-primary);
+  font-weight: 600;
+}
+/* wditemize (round) and wdenumerate (numbers) use default browser markers. */
+ul:not(.wd-list-dashed) > li,
+ol > li { margin-bottom: 0.15rem; }
+
+/* ── Figures ──────────────────────────────────────────────────────────────── */
+figure { margin: 0.8rem 0; }
+figure img {
+  border-radius: 6px;
+  box-shadow: 0 2px 14px rgba(0,0,0,0.09);
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── In-page Table of Contents ────────────────────────────────────────────── */
+.wd-toc-wrap {
+  background-color: var(--wd-light-bg);
+  border: 1px solid var(--wd-border);
+  border-left: 4px solid var(--wd-primary);
+  border-radius: 0 6px 6px 0;
+  padding: 0.9rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: inline-block;
+  min-width: 220px;
+  max-width: 480px;
+}
+.wd-toc-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--wd-primary);
+  margin-bottom: 0.45rem;
+}
+.wd-toc-list { margin: 0; padding: 0; list-style: none; }
+.wd-toc-list a {
+  display: block;
+  color: var(--wd-primary);
+  font-size: 0.87rem;
+  line-height: 1.95;
+  text-decoration: none;
+  transition: color 0.14s;
+}
+.wd-toc-list a:hover    { color: var(--wd-accent); }
+.wd-toc-h2              { padding-left: 0.8rem; }
+.wd-toc-h3              { padding-left: 1.6rem; font-size: 0.81rem; }
+.wd-toc-h4              { padding-left: 2.4rem; font-size: 0.78rem; }
+.wd-toc-h5              { padding-left: 3.2rem; font-size: 0.75rem; }
+.wd-toc-h6              { padding-left: 4.0rem; font-size: 0.72rem; }
+
+/* ── Page width — controlled by --wd-page-width; use wdwidth command to change */
+.container,
+.container-sm,
+.container-md,
+.container-lg,
+.container-xl,
+.container-xxl {
+  max-width: var(--wd-page-width) !important;
+}
+
+/* ── Misc spacing ─────────────────────────────────────────────────────────── */
+p { margin-bottom: 0.85rem; }
+.container, .container-fluid { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+
+/* ── Back-to-top button ───────────────────────────────────────────────────── */
+#wd-back-to-top {
+  display: none;
+  position: fixed;
+  bottom: 2rem;  right: 2rem;
+  z-index: 9999;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background-color: var(--wd-primary);
+  color: #ffffff;
+  border: none;
+  font-size: 1.3rem;
+  line-height: 46px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.22);
+  transition: background-color 0.18s;
+  padding: 0;
+}
+#wd-back-to-top:hover { background-color: var(--wd-accent); }
+</style>
+
+<!-- Bootstrap 5.3 JS Bundle — enables navbar toggler + accordion collapse -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" defer crossorigin="anonymous"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  /* ── Back-to-top floating button ──────────────────────────────────────── */
+  var btn = document.createElement('button');
+  btn.id = 'wd-back-to-top';
+  btn.title = 'Back to top';
+  btn.setAttribute('aria-label', 'Back to top');
+  btn.innerHTML = '<i class="bi bi-chevron-up"></i>';
+  document.body.appendChild(btn);
+  window.addEventListener('scroll', function () {
+    btn.style.display = (window.scrollY > 320) ? 'block' : 'none';
+  });
+  btn.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ── Auto-generate in-page TOC from headings ──────────────────────────── */
+  // Finds every element with class "wd-toc-wrap" and fills it with heading links.
+  // wdtoc.ado writes the container; this script fills it in.
+  // Depth controlled per-wrap via data-wd-depth (1..6, default 3).
+  document.querySelectorAll('.wd-toc-wrap').forEach(function (wrap) {
+    var depth = parseInt(wrap.getAttribute('data-wd-depth') || '3', 10);
+    if (isNaN(depth) || depth < 1) depth = 3;
+    if (depth > 6) depth = 6;
+    var selectors = [];
+    for (var d = 1; d <= depth; d++) selectors.push('h' + d);
+
+    var headings = Array.prototype.slice.call(
+      document.querySelectorAll(selectors.join(','))
+    ).filter(function (h) {
+      // Skip headings inside navbar and accordion headers
+      return !h.closest('.navbar') && !h.classList.contains('accordion-header');
+    });
+
+    if (headings.length === 0) return;
+
+    var ul = document.createElement('ul');
+    ul.className = 'wd-toc-list';
+
+    headings.forEach(function (h, i) {
+      if (!h.id) h.id = 'wdtoc-h-' + i;
+      var li = document.createElement('li');
+      li.className = 'wd-toc-' + h.tagName.toLowerCase();
+      var a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.textContent = h.textContent.trim();
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+
+    wrap.appendChild(ul);
+  });
+
+  /* ── Remove stray closing-command echoes from Stata log output ──────────── */
+  var _wdClosingCmds = ['wdclose', 'buttonclose', 'graphbuttonclose',
+                        'wdnavbarclose', 'wdnavdropdownclose'];
+  document.querySelectorAll('span.stinp').forEach(function (span) {
+    var txt = span.textContent.replace(/^\s*\.\s*/, '').trim();
+    if (_wdClosingCmds.indexOf(txt) !== -1) {
+      var pre = span.closest('pre.stlog');
+      span.remove();
+      if (pre && pre.textContent.trim() === '') pre.remove();
+    }
+  });
+
+});
+</script>
+<style>
+.stcmd .stcmt { font-style: italic; opacity: 0.5; }
+.stoom, .stcnp { font-style: italic; }
+@media screen { .stcnp { display: none; }}
+</style>
+</head>
+<body>
+<h1>nnsreg: Reportable segment slopes for nonlinear relationships in Stata</h1>
+<p><strong>nnsreg</strong> fits a univariate NNS-style piecewise linear curve and posts the result as a Stata estimator. Use it to inspect bends, flat regions, slope changes, and whether those features survive sensitivity checks. The examples here match the help file, README, and Stata Journal draft.</p>
+<p>This page is a companion to the Stata Journal article <em>nnsreg: Reportable segment slopes for nonlinear relationships in Stata</em>. The article makes a simple point: a flexible smoother can draw a nonlinear curve, but applied work often needs a few reportable statements about where a relationship is flat, steep, or changing, and <code>nnsreg</code> returns exactly that as ordinary Stata estimation results. The sections below follow the same path as the article: the questions the command answers, its syntax, the simulated designs that let us score it against a known curve, three worked examples, sensitivity diagnostics, and an interactive explorer for intuition. In each worked example, read the estimates table for the named first-segment slope and the slope-change coefficients, and read the figure for how well each method tracks the true curve. A kernel smoother often recovers a smooth curve at least as accurately; the point of <code>nnsreg</code> is the reportable segment summary it hands back, not a better fit.</p>
+<h2>Questions It Helps Answer</h2>
+<p>Use <code>nnsreg</code> when you need to ask where a relationship bends, which part of the support is steep or flat, whether slope changes are stable across options, and whether a segmented fit adds value relative to <code>regress</code> or <code>npregress kernel</code>. Kernel smoothing remains a strong choice for smooth conditional-mean recovery; NNS is most useful when segmentation, clustered support, sharp local features, or stored slope-change output matter.</p>
+<h2>Syntax And Options</h2>
+<pre><code>nnsreg depvar indepvar [if] [in] [, order(integer) noise(mean|median) method(connect|ols) partition(xy|xonly) minobs(integer) level(cilevel) vce(robust|cluster clustvar) slopes noplot knotlines graph_opts(string) generate(newvar)]</code></pre>
+<ul><li><code>order(#)</code> controls partition depth. Larger values allow more line segments.</li><li><code>noise(mean)</code> uses means for centers and regression points.</li><li><code>noise(median)</code> is a robustness check for skewness or outliers.</li><li><code>method(connect)</code> connects NNS regression points directly.</li><li><code>method(ols)</code> estimates an OLS spline at NNS-derived knots.</li><li><code>partition(xy)</code> is the default NNS-style quadrant partition.</li><li><code>partition(xonly)</code> is a vertical-band sensitivity check.</li><li><code>minobs(#)</code> sets the smallest group the partition keeps splitting (default 8).</li><li><code>slopes</code> reports each segment's slope and standard error, and stores them in <code>e(segments)</code>.</li><li><code>vce(robust|cluster clustvar)</code> passes a robust or cluster-robust covariance to the least-squares stage (with <code>method(ols)</code>).</li></ul>
+<p>The reporting payoff lives in the stored results: <code>e(knots)</code> holds the data-derived knot locations, <code>e(b)</code> names the first-segment slope and each slope change, and <code>e(segments)</code> (or the <code>slopes</code> option) reports the cumulative slope in each range. These are what let you turn a fitted curve into a few <code>lincom</code>-testable statements, the article's central contribution. One honesty note carried over from the article: for <code>method(connect)</code> the standard errors are heuristic references from a rescaled OLS spline covariance, so read them as descriptive summaries of segment stability rather than as tests.</p>
+<h2>Simulation Design</h2>
+<p>The education example simulates an S-shaped curve with diminishing returns. The water example simulates a flatter lower range and a sharper increase after an infrastructure-age threshold. The clustered peak/dip design simulates dense local regions with a peak, sharp dip, and recovery. These are simulated examples, so the figures test software behavior against known curves rather than estimating real policy effects.</p>
+<p>Why simulate? Because the true curve is known in each design, the figures can score how well a method recovers the signal, not just how closely it fits the noisy points. That is the distinction the article measures with its true-curve RMSE. Each design also isolates a different challenge: a smooth curve (education), a threshold or kink (water), and clustered support with a sharp local feature (the clustered design). Watch how the same command behaves across all three.</p>
+<h2>Worked Example: Education</h2>
+<div class="mb-4"> <div class="accordion" id="accordionExample"> <div class="accordion-item"> <h2 class="accordion-header"> <button class="accordion-button collapsed text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse" aria-expanded="false" aria-controls="collapse"> <small>Click to view code</small> </button></h2> <div id="collapse" class="accordion-collapse collapse" data-bs-parent="#accordionExample"><div class="accordion-body">
+<pre id="stlog-1" class="stlog"><samp><span class="stinp">. cd "`root'"</span>
+<span class="stres">/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My D</span>
+<span class="stres">&gt; rive/NNS-stata-public</span>
+
+<span class="stinp">. adopath + "code"</span>
+  [1]  (BASE)      "<span class="stres">/Applications/StataNow/ado/base/</span>"
+  [2]  (SITE)      "<span class="stres">/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.boot</span>
+<span class="stres">&gt; h@texas2036.org/Shared drives/Data and Research Team//_codeshare/</span>"
+  [3]              "<span class="stres">.</span>"
+  [4]  (PERSONAL)  "<span class="stres">/Users/ericbooth/Documents/Stata/ado/personal/</span>"
+  [5]  (PLUS)      "<span class="stres">/Users/ericbooth/Library/Application Support/Stata/ado/plus</span>
+<span class="stres">&gt; /</span>"
+  [6]  (OLDPLACE)  "<span class="stres">~/ado/</span>"
+  [7]              "<span class="stres">code</span>"
+
+<span class="stinp">. use "examples/texas_education.dta", clear</span>
+(Texas School District Operational Funding and Achievement (Simulated))
+
+<span class="stinp">. regress staar_pass spend_pupil</span>
+
+      Source |       SS           df       MS      Number of obs   =<span class="stres">       250</span>
+-------------+----------------------------------   F(1, 248)       = <span class="stres">  1569.26</span>
+       Model | <span class="stres"> 69131.6852         1  69131.6852   </span>Prob &gt; F        =<span class="stres">    0.0000</span>
+    Residual | <span class="stres"> 10925.3186       248  44.0537042   </span>R-squared       =<span class="stres">    0.8635</span>
+-------------+----------------------------------   Adj R-squared   =<span class="stres">    0.8630</span>
+       Total | <span class="stres"> 80057.0038       249  321.514072   </span>Root MSE        =   <span class="stres"> 6.6373</span>
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |<span class="stres">   3.767062   .0950945    39.61   0.000     3.579766    3.954358</span>
+       _cons |<span class="stres">   19.07044   1.254547    15.20   0.000     16.59951    21.54136</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. npregress kernel staar_pass spend_pupil</span>
+
+Computing mean function
+<span class="stres">  </span>
+Minimizing cross-validation function:
+  
+Iteration 0:  Cross-validation criterion = <span class="stres"> 2.9330971</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> 2.9127808</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres"> 2.8814364</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres"> 2.8476389</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> 2.8476389</span>  
+Iteration 5:  Cross-validation criterion = <span class="stres"> 2.8476389</span>  
+Iteration 6:  Cross-validation criterion = <span class="stres"> 2.8476389</span>  
+Iteration 7:  Cross-validation criterion = <span class="stres"> 2.8475597</span>  
+Iteration 8:  Cross-validation criterion = <span class="stres"> 2.8475597</span>  
+<span class="stres">  </span>
+Computing optimal derivative bandwidth
+  
+Iteration 0:  Cross-validation criterion = <span class="stres"> 12.549795</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> 3.7776637</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 5:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 6:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 7:  Cross-validation criterion = <span class="stres"> 1.4772122</span>  
+Iteration 8:  Cross-validation criterion = <span class="stres"> 1.4758876</span>  
+Iteration 9:  Cross-validation criterion = <span class="stres"> 1.4758876</span>  
+Iteration 10: Cross-validation criterion = <span class="stres"> 1.4758876</span>  
+Iteration 11: Cross-validation criterion = <span class="stres"> 1.4758735</span>  
+
+Bandwidth
+-----------------------------------
+             |      Mean     Effect 
+-------------+---------------------
+ spend_pupil | <span class="stres"> .7410478</span>  <span class="stres"> 2.219111</span> 
+-----------------------------------
+
+Local-linear regression                    Number of obs      =  <span class="stres">          250</span>
+Kernel   : <span class="stres">epanechnikov</span>                    E(Kernel obs)      =  <span class="stres">          185</span>
+Bandwidth: <span class="stres">cross-validation</span>                R-squared          =  <span class="stres">       0.9498</span>
+------------------------------------------------------------------------------
+  staar_pass |   Estimate
+-------------+----------------------------------------------------------------
+<span class="stres">Mean         </span>|
+  staar_pass |<span class="stres">   65.87711</span>
+-------------+----------------------------------------------------------------
+<span class="stres">Effect       </span>|
+ spend_pupil |<span class="stres">   3.212304</span>
+------------------------------------------------------------------------------
+Note: Effect estimates are averages of derivatives.
+Note: You may compute standard errors using<span class="stres"> vce(bootstrap)</span> or <span class="stres">reps()</span>.
+
+<span class="stinp">. nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy) generat
+&gt; e(fit_connect)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">staar_pass</span>
+Independent variable: <span class="stres"> spend_pupil</span>
+Method:               <span class="stres">connect</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">3</span>
+Number of obs:        <span class="stres">250</span>
+R-squared:            <span class="stres">0.9294</span>
+Root MSE:             <span class="stres">4.7638</span>
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |<span class="stres">   6.414835     1.9931     3.22   0.001     2.488548    10.34112</span>
+       knot1 |<span class="stres">  -38.42267   11.70671    -3.28   0.001    -61.48418   -15.36117</span>
+       knot2 |<span class="stres">   33.71038    10.7482     3.14   0.002     12.53707    54.88369</span>
+       knot3 |<span class="stres">   5.758648   1.702831     3.38   0.001     2.404173    9.113123</span>
+       knot4 |<span class="stres">   1.668066   7.205733     0.23   0.817    -12.52679    15.86292</span>
+       knot5 |<span class="stres">   6.868115   12.62836     0.54   0.587    -18.00898    31.74521</span>
+       knot6 |<span class="stres">  -10.78198   7.428372    -1.45   0.148    -25.41542    3.851462</span>
+       knot7 |<span class="stres">  -8.614286   1.809618    -4.76   0.000    -12.17912   -5.049449</span>
+       knot8 |<span class="stres">   9.589458    1.73666     5.52   0.000     6.168344    13.01057</span>
+       knot9 |<span class="stres">  -5.920695   1.674757    -3.54   0.000    -9.219864   -2.621525</span>
+       _cons |<span class="stres">    6.99154   11.36595     0.62   0.539    -15.39869    29.38177</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store edu_connect</span>
+
+<span class="stinp">. nnsreg staar_pass spend_pupil, order(3) method(ols) partition(xy) generate(fi
+&gt; t_ols)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">staar_pass</span>
+Independent variable: <span class="stres"> spend_pupil</span>
+Method:               <span class="stres">ols</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">3</span>
+Number of obs:        <span class="stres">250</span>
+R-squared:            <span class="stres">0.9494</span>
+Root MSE:             <span class="stres">4.1190</span>
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |<span class="stres">   1.596661   1.723323     0.93   0.355     -1.79818    4.991503</span>
+       knot1 |<span class="stres">  -9.011045   10.12214    -0.89   0.374    -28.95104    10.92895</span>
+       knot2 |<span class="stres">   10.02821   9.293371     1.08   0.282    -8.279165    28.33559</span>
+       knot3 |<span class="stres">   4.362331   1.472343     2.96   0.003     1.461904    7.262758</span>
+       knot4 |<span class="stres">   5.818051   6.230395     0.93   0.351    -6.455449    18.09155</span>
+       knot5 |<span class="stres">  -3.221368   10.91903    -0.30   0.768     -24.7312    18.28847</span>
+       knot6 |<span class="stres">  -4.405113   6.422898    -0.69   0.493    -17.05783    8.247607</span>
+       knot7 |<span class="stres">  -4.086812   1.564676    -2.61   0.010    -7.169128   -1.004496</span>
+       knot8 |<span class="stres">   -.174616   1.501593    -0.12   0.908    -3.132662     2.78343</span>
+       knot9 |<span class="stres">  -.8417628   1.448069    -0.58   0.562     -3.69437    2.010845</span>
+       _cons |<span class="stres">   32.08628   9.827502     3.26   0.001     12.72669    51.44586</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store edu_ols</span>
+
+<span class="stinp">. estimates table edu_connect edu_ols, b se stats(r2 rmse N)</span>
+
+----------------------------------------
+    Variable | edu_conn~t    edu_ols    
+-------------+--------------------------
+ spend_pupil |<span class="stres">  6.4148354</span>  <span class="stres">  1.5966614</span>  
+             |<span class="stres">  1.9931005</span>  <span class="stres">  1.7233227</span>  
+       knot1 |<span class="stres"> -38.422673</span>  <span class="stres"> -9.0110452</span>  
+             |<span class="stres">  11.706709</span>  <span class="stres">  10.122137</span>  
+       knot2 |<span class="stres">  33.710379</span>  <span class="stres">  10.028213</span>  
+             |<span class="stres">  10.748203</span>  <span class="stres">   9.293371</span>  
+       knot3 |<span class="stres">   5.758648</span>  <span class="stres">  4.3623309</span>  
+             |<span class="stres">  1.7028315</span>  <span class="stres">  1.4723433</span>  
+       knot4 |<span class="stres">  1.6680664</span>  <span class="stres">  5.8180512</span>  
+             |<span class="stres">  7.2057327</span>  <span class="stres">  6.2303947</span>  
+       knot5 |<span class="stres">  6.8681152</span>  <span class="stres"> -3.2213677</span>  
+             |<span class="stres">  12.628356</span>  <span class="stres">  10.919034</span>  
+       knot6 |<span class="stres">  -10.78198</span>  <span class="stres"> -4.4051133</span>  
+             |<span class="stres">  7.4283716</span>  <span class="stres">   6.422898</span>  
+       knot7 |<span class="stres"> -8.6142864</span>  <span class="stres"> -4.0868116</span>  
+             |<span class="stres">   1.809618</span>  <span class="stres">  1.5646756</span>  
+       knot8 |<span class="stres">  9.5894583</span>  <span class="stres"> -.17461598</span>  
+             |<span class="stres">  1.7366596</span>  <span class="stres">  1.5015926</span>  
+       knot9 |<span class="stres"> -5.9206949</span>  <span class="stres"> -.84176281</span>  
+             |<span class="stres">  1.6747568</span>  <span class="stres">  1.4480687</span>  
+       _cons |<span class="stres">  6.9915396</span>  <span class="stres">  32.086278</span>  
+             |<span class="stres">   11.36595</span>  <span class="stres">   9.827502</span>  
+-------------+--------------------------
+          r2 |<span class="stres">  .92941606</span>  <span class="stres">  .94935002</span>  
+        rmse |<span class="stres">  4.7637937</span>  <span class="stres">  4.1189864</span>  
+           N |<span class="stres">        250</span>  <span class="stres">        250</span>  
+----------------------------------------
+                            Legend: b/se
+
+
+</samp></pre>
+</div> </div> </div> </div> </div> <br>
+<figure><img src="../manuscript/fig_edu_fits.png" class="img-fluid" alt="Education fit comparison, one method per panel"><figcaption>One fitted method per panel against the same simulated data (gray) and true curve (black). The kernel smoother and NNS OLS both recover the S-shape; the connected NNS fit is more jagged because it interpolates the regression points.</figcaption></figure>
+<figure><img src="../manuscript/fig_edu_coef.png" class="img-fluid" alt="Education stored slope components"><figcaption>Stored slope components with knot-located labels: the reportable first-segment slope and slope changes that <code>e(b)</code>, <code>e(segments)</code>, and <code>lincom</code> return.</figcaption></figure>
+<p><strong>Why this example:</strong> the education design is a smooth S-curve, the case where a kernel smoother should do at least as well as <code>nnsreg</code>. It shows what the command adds even when it does not win on accuracy. <strong>How to read the output:</strong> in the estimates table, the first coefficient (<code>spend_pupil</code>) is the slope of the first segment, and each <code>knot#</code> coefficient is the change in slope at an NNS-derived knot; their locations are in <code>e(knots)</code>. In the figure, the kernel smoother and NNS OLS both recover the S-shape, while the connected NNS fit is more jagged because it interpolates the regression points rather than minimizing squared error. The lesson matches the article: on a smooth curve the smoother matches or beats NNS on accuracy, and what NNS adds is the reportable slope pieces, not a better fit.</p>
+<h2>Worked Example: Water</h2>
+<div class="mb-4"> <div class="accordion" id="accordionExample"> <div class="accordion-item"> <h2 class="accordion-header"> <button class="accordion-button collapsed text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1"> <small>Click to view code</small> </button></h2> <div id="collapse1" class="accordion-collapse collapse" data-bs-parent="#accordionExample"><div class="accordion-body">
+<pre id="stlog-2" class="stlog"><samp><span class="stinp">. use "examples/texas_water.dta", clear</span>
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+
+<span class="stinp">. regress water_loss pipe_age</span>
+
+      Source |       SS           df       MS      Number of obs   =<span class="stres">       300</span>
+-------------+----------------------------------   F(1, 298)       = <span class="stres">  1011.70</span>
+       Model | <span class="stres"> 30133.6553         1  30133.6553   </span>Prob &gt; F        =<span class="stres">    0.0000</span>
+    Residual | <span class="stres"> 8875.99985       298  29.7852344   </span>R-squared       =<span class="stres">    0.7725</span>
+-------------+----------------------------------   Adj R-squared   =<span class="stres">    0.7717</span>
+       Total | <span class="stres"> 39009.6552       299  130.467074   </span>Root MSE        =   <span class="stres"> 5.4576</span>
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |<span class="stres">   .4373631   .0137504    31.81   0.000     .4103029    .4644234</span>
+       _cons |<span class="stres">  -.6893824   .6275298    -1.10   0.273    -1.924334    .5455689</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. npregress kernel water_loss pipe_age</span>
+
+Computing mean function
+<span class="stres">  </span>
+Minimizing cross-validation function:
+  
+Iteration 0:  Cross-validation criterion = <span class="stres"> 1.7831585</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> 1.7809987</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres">  1.777016</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres">  1.769988</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> 1.7588352</span>  
+Iteration 5:  Cross-validation criterion = <span class="stres"> 1.7440795</span>  
+Iteration 6:  Cross-validation criterion = <span class="stres"> 1.7440795</span>  
+Iteration 7:  Cross-validation criterion = <span class="stres"> 1.7440498</span>  
+Iteration 8:  Cross-validation criterion = <span class="stres"> 1.7439518</span>  
+Iteration 9:  Cross-validation criterion = <span class="stres"> 1.7438719</span>  
+Iteration 10: Cross-validation criterion = <span class="stres"> 1.7438719</span>  
+Iteration 11: Cross-validation criterion = <span class="stres"> 1.7438719</span>  
+<span class="stres">  </span>
+Computing optimal derivative bandwidth
+  
+Iteration 0:  Cross-validation criterion = <span class="stres"> .03408631</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> .03370792</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres"> .03365267</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres"> .03362412</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> .03362255</span>  
+
+Bandwidth
+-----------------------------------
+             |      Mean     Effect 
+-------------+---------------------
+    pipe_age | <span class="stres"> 3.935402</span>  <span class="stres"> 5.639192</span> 
+-----------------------------------
+
+Local-linear regression                    Number of obs      =  <span class="stres">          300</span>
+Kernel   : <span class="stres">epanechnikov</span>                    E(Kernel obs)      =  <span class="stres">          300</span>
+Bandwidth: <span class="stres">cross-validation</span>                R-squared          =  <span class="stres">       0.9583</span>
+------------------------------------------------------------------------------
+  water_loss |   Estimate
+-------------+----------------------------------------------------------------
+<span class="stres">Mean         </span>|
+  water_loss |<span class="stres">   16.70531</span>
+-------------+----------------------------------------------------------------
+<span class="stres">Effect       </span>|
+    pipe_age |<span class="stres">   .4462689</span>
+------------------------------------------------------------------------------
+Note: Effect estimates are averages of derivatives.
+Note: You may compute standard errors using<span class="stres"> vce(bootstrap)</span> or <span class="stres">reps()</span>.
+
+<span class="stinp">. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) generate(f
+&gt; it_connect)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">water_loss</span>
+Independent variable: <span class="stres"> pipe_age</span>
+Method:               <span class="stres">connect</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">3</span>
+Number of obs:        <span class="stres">300</span>
+R-squared:            <span class="stres">0.9294</span>
+Root MSE:             <span class="stres">3.0344</span>
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |<span class="stres">   .0861409   .2219984     0.39   0.698    -.3507977    .5230796</span>
+       knot1 |<span class="stres">   -16.2525   6.230598    -2.61   0.010     -28.5156   -3.989393</span>
+       knot2 |<span class="stres">   16.15814   6.084856     2.66   0.008      4.18189     28.1344</span>
+       knot3 |<span class="stres">    .706108   .1558647     4.53   0.000     .3993342    1.012882</span>
+       knot4 |<span class="stres">  -2.071645   .4384428    -4.73   0.000    -2.934591   -1.208699</span>
+       knot5 |<span class="stres">   2.439061   .5337381     4.57   0.000     1.388555    3.489568</span>
+       knot6 |<span class="stres">   .2821719   .3608054     0.78   0.435    -.4279677    .9923114</span>
+       knot7 |<span class="stres">  -2.290321   .4260193    -5.38   0.000    -3.128815   -1.451827</span>
+       knot8 |<span class="stres">   2.049209   .3825173     5.36   0.000     1.296336    2.802081</span>
+       knot9 |<span class="stres">   .0676376   .2284458     0.30   0.767    -.3819909     .517266</span>
+       _cons |<span class="stres">   8.991754   1.143016     7.87   0.000     6.742063    11.24145</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store water_connect</span>
+
+<span class="stinp">. nnsreg water_loss pipe_age, order(3) method(ols) partition(xy) generate(fit_o
+&gt; ls)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">water_loss</span>
+Independent variable: <span class="stres"> pipe_age</span>
+Method:               <span class="stres">ols</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">3</span>
+Number of obs:        <span class="stres">300</span>
+R-squared:            <span class="stres">0.9586</span>
+Root MSE:             <span class="stres">2.3637</span>
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |<span class="stres">  -.2771159   .1729283    -1.60   0.110    -.6174744    .0632427</span>
+       knot1 |<span class="stres">   5.750165   4.853398     1.18   0.237    -3.802325    15.30266</span>
+       knot2 |<span class="stres">  -5.467069   4.739871    -1.15   0.250    -14.79611    3.861976</span>
+       knot3 |<span class="stres">   .0010077   .1214126     0.01   0.993    -.2379574    .2399728</span>
+       knot4 |<span class="stres">   .7846341   .3415302     2.30   0.022     .1124322    1.456836</span>
+       knot5 |<span class="stres">  -.3411592   .4157617    -0.82   0.413    -1.159464    .4771455</span>
+       knot6 |<span class="stres">   .2781807   .2810537     0.99   0.323     -.274991    .8313523</span>
+       knot7 |<span class="stres">  -.2000422   .3318528    -0.60   0.547     -.853197    .4531125</span>
+       knot8 |<span class="stres">   .4977472   .2979664     1.67   0.096    -.0887121    1.084207</span>
+       knot9 |<span class="stres">   .1723862   .1779506     0.97   0.333    -.1778572    .5226297</span>
+       _cons |<span class="stres">   9.234832    .890366    10.37   0.000     7.482408    10.98726</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store water_ols</span>
+
+<span class="stinp">. estimates table water_connect water_ols, b se stats(r2 rmse N)</span>
+
+----------------------------------------
+    Variable | water_co~t   water_ols   
+-------------+--------------------------
+    pipe_age |<span class="stres">  .08614092</span>  <span class="stres"> -.27711587</span>  
+             |<span class="stres">  .22199838</span>  <span class="stres">  .17292827</span>  
+       knot1 |<span class="stres"> -16.252496</span>  <span class="stres">  5.7501653</span>  
+             |<span class="stres">  6.2305983</span>  <span class="stres">  4.8533985</span>  
+       knot2 |<span class="stres">  16.158144</span>  <span class="stres"> -5.4670686</span>  
+             |<span class="stres">  6.0848564</span>  <span class="stres">   4.739871</span>  
+       knot3 |<span class="stres">    .706108</span>  <span class="stres">  .00100767</span>  
+             |<span class="stres">  .15586465</span>  <span class="stres">  .12141262</span>  
+       knot4 |<span class="stres"> -2.0716453</span>  <span class="stres">  .78463415</span>  
+             |<span class="stres">  .43844276</span>  <span class="stres">  .34153019</span>  
+       knot5 |<span class="stres">  2.4390613</span>  <span class="stres"> -.34115924</span>  
+             |<span class="stres">  .53373814</span>  <span class="stres">  .41576166</span>  
+       knot6 |<span class="stres">  .28217186</span>  <span class="stres">  .27818066</span>  
+             |<span class="stres">  .36080544</span>  <span class="stres">  .28105367</span>  
+       knot7 |<span class="stres">  -2.290321</span>  <span class="stres"> -.20004223</span>  
+             |<span class="stres">  .42601929</span>  <span class="stres">  .33185278</span>  
+       knot8 |<span class="stres">  2.0492085</span>  <span class="stres">  .49774722</span>  
+             |<span class="stres">  .38251728</span>  <span class="stres">  .29796637</span>  
+       knot9 |<span class="stres">  .06763758</span>  <span class="stres">  .17238624</span>  
+             |<span class="stres">  .22844579</span>  <span class="stres">  .17795056</span>  
+       _cons |<span class="stres">  8.9917543</span>  <span class="stres">  9.2348322</span>  
+             |<span class="stres">  1.1430162</span>  <span class="stres">  .89036601</span>  
+-------------+--------------------------
+          r2 |<span class="stres">  .92942593</span>  <span class="stres">  .95860916</span>  
+        rmse |<span class="stres">  3.0344014</span>  <span class="stres">   2.363683</span>  
+           N |<span class="stres">        300</span>  <span class="stres">        300</span>  
+----------------------------------------
+                            Legend: b/se
+
+
+</samp></pre>
+</div> </div> </div> </div> </div> <br>
+<figure><img src="../manuscript/fig_water_fits.png" class="img-fluid" alt="Water fit comparison, one method per panel"><figcaption>One fitted method per panel. The true curve is flat until pipe age 35 and rises afterward; the kernel smoother and NNS OLS both recover the flat-then-rising shape.</figcaption></figure>
+<figure><img src="../manuscript/fig_water_knots.png" class="img-fluid" alt="Water NNS OLS fit with interior knots"><figcaption>The NNS OLS fit with its interior knots (from <code>e(knots)</code>, dashed): several land near the true change point at age 35.</figcaption></figure>
+<p><strong>Why this example:</strong> the water curve is flat for young pipes and rises after a change point near age 35, so it tests whether the command can locate a threshold. <strong>How to read the output:</strong> read <code>e(knots)</code> and the figure to see several NNS knots land near that change point; the first-segment slope is close to zero (flat young pipes) and the terminal slope is clearly positive (deteriorating old pipes). That flat-then-rising contrast is a single <code>lincom</code> on the stored coefficients. This is the interpretive case the article highlights: the command reports <em>where</em> the relationship turns and how steep it is on each side, not just that it curves.</p>
+<h2>Worked Example: Clustered Peak/Dip</h2>
+<div class="mb-4"> <div class="accordion" id="accordionExample"> <div class="accordion-item"> <h2 class="accordion-header"> <button class="accordion-button collapsed text-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2"> <small>Click to view code</small> </button></h2> <div id="collapse2" class="accordion-collapse collapse" data-bs-parent="#accordionExample"><div class="accordion-body">
+<pre id="stlog-3" class="stlog"><samp><span class="stinp">. use "examples/clustered_peak_dip.dta", clear</span>
+(Clustered peak/dip benchmark data (Simulated))
+
+<span class="stinp">. regress outcome_index cluster_score</span>
+
+      Source |       SS           df       MS      Number of obs   =<span class="stres">       260</span>
+-------------+----------------------------------   F(1, 258)       = <span class="stres">     9.90</span>
+       Model | <span class="stres"> 892.314762         1  892.314762   </span>Prob &gt; F        =<span class="stres">    0.0018</span>
+    Residual | <span class="stres"> 23250.6217       258  90.1186888   </span>R-squared       =<span class="stres">    0.0370</span>
+-------------+----------------------------------   Adj R-squared   =<span class="stres">    0.0332</span>
+       Total | <span class="stres"> 24142.9365       259   93.215971   </span>Root MSE        =   <span class="stres"> 9.4931</span>
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |<span class="stres">   .1305761   .0414966     3.15   0.002      .048861    .2122912</span>
+       _cons |<span class="stres">   20.09065   1.587675    12.65   0.000      16.9642     23.2171</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. npregress kernel outcome_index cluster_score</span>
+
+Computing mean function
+<span class="stres">  </span>
+Minimizing cross-validation function:
+  
+Iteration 0:  Cross-validation criterion = <span class="stres">  2.310699</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> 2.2655508</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres"> 2.1688701</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres"> 1.9546779</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> 1.5002421</span>  
+Iteration 5:  Cross-validation criterion = <span class="stres"> 1.0791909</span>  
+Iteration 6:  Cross-validation criterion = <span class="stres"> 1.0791909</span>  
+Iteration 7:  Cross-validation criterion = <span class="stres"> 1.0791909</span>  
+Iteration 8:  Cross-validation criterion = <span class="stres"> 1.0791909</span>  
+Iteration 9:  Cross-validation criterion = <span class="stres"> 1.0719036</span>  
+Iteration 10: Cross-validation criterion = <span class="stres"> 1.0719036</span>  
+Iteration 11: Cross-validation criterion = <span class="stres"> 1.0719036</span>  
+Iteration 12: Cross-validation criterion = <span class="stres"> 1.0717424</span>  
+Iteration 13: Cross-validation criterion = <span class="stres"> 1.0717424</span>  
+Iteration 14: Cross-validation criterion = <span class="stres"> 1.0717424</span>  
+<span class="stres">  </span>
+Computing optimal derivative bandwidth
+  
+Iteration 0:  Cross-validation criterion = <span class="stres"> .49995534</span>  
+Iteration 1:  Cross-validation criterion = <span class="stres"> .49995534</span>  
+Iteration 2:  Cross-validation criterion = <span class="stres"> .49577144</span>  
+Iteration 3:  Cross-validation criterion = <span class="stres"> .49466302</span>  
+Iteration 4:  Cross-validation criterion = <span class="stres"> .49391157</span>  
+Iteration 5:  Cross-validation criterion = <span class="stres"> .49391157</span>  
+Iteration 6:  Cross-validation criterion = <span class="stres"> .49391157</span>  
+Iteration 7:  Cross-validation criterion = <span class="stres"> .49390382</span>  
+
+Bandwidth
+-----------------------------------
+             |      Mean     Effect 
+-------------+---------------------
+cluster_sc~e | <span class="stres"> 2.330919</span>  <span class="stres"> 3.145219</span> 
+-----------------------------------
+
+Local-linear regression                    Number of obs      =  <span class="stres">          260</span>
+Kernel   : <span class="stres">epanechnikov</span>                    E(Kernel obs)      =  <span class="stres">          260</span>
+Bandwidth: <span class="stres">cross-validation</span>                R-squared          =  <span class="stres">       0.9804</span>
+------------------------------------------------------------------------------
+outcome_in~x |   Estimate
+-------------+----------------------------------------------------------------
+<span class="stres">Mean         </span>|
+outcome_in~x |<span class="stres">   24.85717</span>
+-------------+----------------------------------------------------------------
+<span class="stres">Effect       </span>|
+cluster_sc~e |<span class="stres">   .6148018</span>
+------------------------------------------------------------------------------
+Note: Effect estimates are averages of derivatives.
+Note: You may compute standard errors using<span class="stres"> vce(bootstrap)</span> or <span class="stres">reps()</span>.
+
+<span class="stinp">. nnsreg outcome_index cluster_score, order(3) method(connect) partition(xy) ge
+&gt; nerate(fit_connect)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">outcome_index</span>
+Independent variable: <span class="stres"> cluster_score</span>
+Method:               <span class="stres">connect</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">3</span>
+Number of obs:        <span class="stres">260</span>
+R-squared:            <span class="stres">0.9580</span>
+Root MSE:             <span class="stres">1.9788</span>
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |<span class="stres">   1.120714   .3435739     3.26   0.001     .4439788     1.79745</span>
+       knot1 |<span class="stres">   .7115666   .5646065     1.26   0.209    -.4005354    1.823669</span>
+       knot2 |<span class="stres">  -1.299189   .5264169    -2.47   0.014    -2.336069   -.2623088</span>
+       knot3 |<span class="stres">   -1.96334   .3913636    -5.02   0.000    -2.734207   -1.192474</span>
+       knot4 |<span class="stres">  -.6935102   .3443562    -2.01   0.045    -1.371787   -.0152338</span>
+       knot5 |<span class="stres">   -14.2029   5.216118    -2.72   0.007    -24.47705    -3.92874</span>
+       knot6 |<span class="stres">   16.82894   6.535287     2.58   0.011     3.956428    29.70146</span>
+       knot7 |<span class="stres">   .8329994   2.819879     0.30   0.768      -4.7213    6.387299</span>
+       knot8 |<span class="stres">   2.250302   1.585729     1.42   0.157    -.8730993    5.373704</span>
+       knot9 |<span class="stres">  -2.312938    .646902    -3.58   0.000    -3.587137   -1.038739</span>
+      knot10 |<span class="stres">  -.2645972   .4882782    -0.54   0.588    -1.226356    .6971614</span>
+      knot11 |<span class="stres">  -.9356679   .3568239    -2.62   0.009    -1.638502   -.2328339</span>
+      knot12 |<span class="stres">  -.8161133    .390281    -2.09   0.038    -1.584847   -.0473792</span>
+      knot13 |<span class="stres">   .2797959   .7418032     0.38   0.706    -1.181329    1.740921</span>
+       _cons |<span class="stres">   4.923034   6.345917     0.78   0.439    -7.576481    17.42255</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store cluster_connect</span>
+
+<span class="stinp">. nnsreg outcome_index cluster_score, order(4) method(ols) partition(xy) genera
+&gt; te(fit_ols)</span>
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   <span class="stres">outcome_index</span>
+Independent variable: <span class="stres"> cluster_score</span>
+Method:               <span class="stres">ols</span>
+Noise reduction:      <span class="stres">mean</span>
+Partition:            <span class="stres">xy</span>
+Order:                <span class="stres">4</span>
+Number of obs:        <span class="stres">260</span>
+R-squared:            <span class="stres">0.9876</span>
+Root MSE:             <span class="stres">1.1617</span>
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P&gt;|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |<span class="stres">    .848714   .4348906     1.95   0.052    -.0083493    1.705777</span>
+       knot1 |<span class="stres">   .4883385   1.024861     0.48   0.634    -1.531412    2.508089</span>
+       knot2 |<span class="stres">   2.268363   2.698766     0.84   0.402    -3.050248    7.586974</span>
+       knot3 |<span class="stres">  -1.606461   3.081166    -0.52   0.603    -7.678689    4.465767</span>
+       knot4 |<span class="stres">  -2.176678   3.392765    -0.64   0.522     -8.86299    4.509634</span>
+       knot5 |<span class="stres">   3.338294   8.821542     0.38   0.705    -14.04681     20.7234</span>
+       knot6 |<span class="stres">  -.9716296   8.330028    -0.12   0.907    -17.38808    15.44483</span>
+       knot7 |<span class="stres">  -71.03825   38.46235    -1.85   0.066    -146.8382    4.761663</span>
+       knot8 |<span class="stres">   71.16127   38.07552     1.87   0.063    -3.876297    146.1988</span>
+       knot9 |<span class="stres">  -8.957038   5.979216    -1.50   0.136    -20.74062    2.826539</span>
+      knot10 |<span class="stres">   7.804726   5.650968     1.38   0.169    -3.331955    18.94141</span>
+      knot11 |<span class="stres">  -1.668727   1.213896    -1.37   0.171     -4.06102    .7235651</span>
+      knot12 |<span class="stres">  -1.633284   1.009825    -1.62   0.107    -3.623403     .356835</span>
+      knot13 |<span class="stres">  -1.963866   .5414126    -3.63   0.000    -3.030858   -.8968732</span>
+      knot14 |<span class="stres">   1.262768   .7775381     1.62   0.106    -.2695702    2.795106</span>
+      knot15 |<span class="stres">   1.322237   1.763162     0.75   0.454    -2.152526    4.796999</span>
+      knot16 |<span class="stres">  -.1685952   5.175368    -0.03   0.974    -10.36798    10.03079</span>
+      knot17 |<span class="stres">   1.893056   4.712225     0.40   0.688    -7.393592     11.1797</span>
+      knot18 |<span class="stres">   16.84392   19.60827     0.86   0.391     -21.7992    55.48703</span>
+      knot19 |<span class="stres">  -29.43101   37.56457    -0.78   0.434    -103.4616    44.59961</span>
+      knot20 |<span class="stres">   14.46965   18.95416     0.76   0.446    -22.88437    51.82367</span>
+      knot21 |<span class="stres">  -9.168316   197.2372    -0.05   0.963    -397.8747    379.5381</span>
+      knot22 |<span class="stres">   10.41407   198.8902     0.05   0.958    -381.5501    402.3783</span>
+      knot23 |<span class="stres">  -1.659817   4.637367    -0.36   0.721    -10.79894    7.479303</span>
+      knot24 |<span class="stres">   4.642198   3.558037     1.30   0.193    -2.369826    11.65422</span>
+      knot25 |<span class="stres">  -4.931933   2.660125    -1.85   0.065    -10.17439    .3105251</span>
+      knot26 |<span class="stres">   2.386942   3.200908     0.75   0.457    -3.921268    8.695151</span>
+      knot27 |<span class="stres">  -2.864625   2.064314    -1.39   0.167    -6.932884    1.203633</span>
+      knot28 |<span class="stres">     .33081   .5215223     0.63   0.527    -.6969834    1.358603</span>
+      knot29 |<span class="stres">    1.51865   2.049536     0.74   0.459    -2.520486    5.557785</span>
+      knot30 |<span class="stres">  -3.583161    4.27606    -0.84   0.403    -12.01023    4.843911</span>
+      knot31 |<span class="stres">  -8.266013    45.2846    -0.18   0.855    -97.51092    80.97889</span>
+      knot32 |<span class="stres">   9.526355   44.04327     0.22   0.829     -77.2722    96.32491</span>
+      knot33 |<span class="stres">   1.122705   2.569632     0.44   0.663    -3.941412    6.186823</span>
+      knot34 |<span class="stres">  -1.732688   1.440612    -1.20   0.230    -4.571782    1.106407</span>
+      knot35 |<span class="stres">  -.6975396   1.022802    -0.68   0.496    -2.713232    1.318153</span>
+      knot36 |<span class="stres">  -.2510963   1.092438    -0.23   0.818    -2.404026    1.901833</span>
+      knot37 |<span class="stres">   .7499142   .5836791     1.28   0.200    -.4003751    1.900203</span>
+       _cons |<span class="stres">   9.237177   7.324369     1.26   0.209    -5.197368    23.67172</span>
+------------------------------------------------------------------------------
+
+<span class="stinp">. estimates store cluster_ols</span>
+
+<span class="stinp">. estimates table cluster_connect cluster_ols, b se stats(r2 rmse N)</span>
+
+----------------------------------------
+    Variable | cluster_~t   cluster_~s  
+-------------+--------------------------
+cluster_sc~e |<span class="stres">  1.1207143</span>  <span class="stres">  .84871403</span>  
+             |<span class="stres">  .34357394</span>  <span class="stres">  .43489055</span>  
+       knot1 |<span class="stres">  .71156658</span>  <span class="stres">  .48833855</span>  
+             |<span class="stres">  .56460649</span>  <span class="stres">  1.0248605</span>  
+       knot2 |<span class="stres"> -1.2991889</span>  <span class="stres">  2.2683631</span>  
+             |<span class="stres">  .52641689</span>  <span class="stres">  2.6987664</span>  
+       knot3 |<span class="stres"> -1.9633404</span>  <span class="stres"> -1.6064606</span>  
+             |<span class="stres">  .39136359</span>  <span class="stres">  3.0811665</span>  
+       knot4 |<span class="stres"> -.69351016</span>  <span class="stres"> -2.1766779</span>  
+             |<span class="stres">  .34435624</span>  <span class="stres">  3.3927646</span>  
+       knot5 |<span class="stres"> -14.202897</span>  <span class="stres">  3.3382944</span>  
+             |<span class="stres">  5.2161183</span>  <span class="stres">  8.8215416</span>  
+       knot6 |<span class="stres">  16.828942</span>  <span class="stres">  -.9716296</span>  
+             |<span class="stres">  6.5352868</span>  <span class="stres">   8.330028</span>  
+       knot7 |<span class="stres">  .83299941</span>  <span class="stres"> -71.038246</span>  
+             |<span class="stres">  2.8198794</span>  <span class="stres">  38.462346</span>  
+       knot8 |<span class="stres">  2.2503022</span>  <span class="stres">   71.16127</span>  
+             |<span class="stres">  1.5857294</span>  <span class="stres">  38.075518</span>  
+       knot9 |<span class="stres"> -2.3129376</span>  <span class="stres">  -8.957038</span>  
+             |<span class="stres">  .64690201</span>  <span class="stres">  5.9792159</span>  
+      knot10 |<span class="stres"> -.26459718</span>  <span class="stres">  7.8047255</span>  
+             |<span class="stres">  .48827817</span>  <span class="stres">   5.650968</span>  
+      knot11 |<span class="stres"> -.93566785</span>  <span class="stres"> -1.6687273</span>  
+             |<span class="stres">  .35682393</span>  <span class="stres">  1.2138956</span>  
+      knot12 |<span class="stres"> -.81611331</span>  <span class="stres"> -1.6332842</span>  
+             |<span class="stres">  .39028098</span>  <span class="stres">  1.0098251</span>  
+      knot13 |<span class="stres">  .27979586</span>  <span class="stres"> -1.9638656</span>  
+             |<span class="stres">  .74180324</span>  <span class="stres">  .54141263</span>  
+      knot14 |<span class="stres">           </span>  <span class="stres">  1.2627678</span>  
+             |<span class="stres">           </span>  <span class="stres">  .77753807</span>  
+      knot15 |<span class="stres">           </span>  <span class="stres">  1.3222366</span>  
+             |<span class="stres">           </span>  <span class="stres">  1.7631621</span>  
+      knot16 |<span class="stres">           </span>  <span class="stres"> -.16859517</span>  
+             |<span class="stres">           </span>  <span class="stres">  5.1753684</span>  
+      knot17 |<span class="stres">           </span>  <span class="stres">  1.8930562</span>  
+             |<span class="stres">           </span>  <span class="stres">  4.7122255</span>  
+      knot18 |<span class="stres">           </span>  <span class="stres">  16.843915</span>  
+             |<span class="stres">           </span>  <span class="stres">  19.608266</span>  
+      knot19 |<span class="stres">           </span>  <span class="stres"> -29.431011</span>  
+             |<span class="stres">           </span>  <span class="stres">  37.564574</span>  
+      knot20 |<span class="stres">           </span>  <span class="stres">  14.469648</span>  
+             |<span class="stres">           </span>  <span class="stres">  18.954156</span>  
+      knot21 |<span class="stres">           </span>  <span class="stres"> -9.1683163</span>  
+             |<span class="stres">           </span>  <span class="stres">  197.23717</span>  
+      knot22 |<span class="stres">           </span>  <span class="stres">  10.414075</span>  
+             |<span class="stres">           </span>  <span class="stres">  198.89024</span>  
+      knot23 |<span class="stres">           </span>  <span class="stres"> -1.6598172</span>  
+             |<span class="stres">           </span>  <span class="stres">  4.6373671</span>  
+      knot24 |<span class="stres">           </span>  <span class="stres">  4.6421982</span>  
+             |<span class="stres">           </span>  <span class="stres">  3.5580372</span>  
+      knot25 |<span class="stres">           </span>  <span class="stres">  -4.931933</span>  
+             |<span class="stres">           </span>  <span class="stres">   2.660125</span>  
+      knot26 |<span class="stres">           </span>  <span class="stres">  2.3869415</span>  
+             |<span class="stres">           </span>  <span class="stres">  3.2009078</span>  
+      knot27 |<span class="stres">           </span>  <span class="stres"> -2.8646254</span>  
+             |<span class="stres">           </span>  <span class="stres">  2.0643135</span>  
+      knot28 |<span class="stres">           </span>  <span class="stres">  .33080999</span>  
+             |<span class="stres">           </span>  <span class="stres">  .52152232</span>  
+      knot29 |<span class="stres">           </span>  <span class="stres">  1.5186498</span>  
+             |<span class="stres">           </span>  <span class="stres">  2.0495358</span>  
+      knot30 |<span class="stres">           </span>  <span class="stres">  -3.583161</span>  
+             |<span class="stres">           </span>  <span class="stres">  4.2760598</span>  
+      knot31 |<span class="stres">           </span>  <span class="stres"> -8.2660132</span>  
+             |<span class="stres">           </span>  <span class="stres">  45.284598</span>  
+      knot32 |<span class="stres">           </span>  <span class="stres">  9.5263547</span>  
+             |<span class="stres">           </span>  <span class="stres">   44.04327</span>  
+      knot33 |<span class="stres">           </span>  <span class="stres">  1.1227055</span>  
+             |<span class="stres">           </span>  <span class="stres">  2.5696316</span>  
+      knot34 |<span class="stres">           </span>  <span class="stres">  -1.732688</span>  
+             |<span class="stres">           </span>  <span class="stres">  1.4406117</span>  
+      knot35 |<span class="stres">           </span>  <span class="stres"> -.69753958</span>  
+             |<span class="stres">           </span>  <span class="stres">  1.0228016</span>  
+      knot36 |<span class="stres">           </span>  <span class="stres"> -.25109634</span>  
+             |<span class="stres">           </span>  <span class="stres">  1.0924381</span>  
+      knot37 |<span class="stres">           </span>  <span class="stres">  .74991418</span>  
+             |<span class="stres">           </span>  <span class="stres">   .5836791</span>  
+       _cons |<span class="stres">  4.9230341</span>  <span class="stres">  9.2371775</span>  
+             |<span class="stres">  6.3459174</span>  <span class="stres">  7.3243687</span>  
+-------------+--------------------------
+          r2 |<span class="stres">   .9579939</span>  <span class="stres">  .98764614</span>  
+        rmse |<span class="stres">  1.9787975</span>  <span class="stres">  1.1617167</span>  
+           N |<span class="stres">        260</span>  <span class="stres">        260</span>  
+----------------------------------------
+                            Legend: b/se
+
+
+</samp></pre>
+</div> </div> </div> </div> </div> <br>
+<figure><img src="../manuscript/fig_cluster_fits.png" class="img-fluid" alt="Clustered peak/dip fit comparison, one method per panel"><figcaption>One fitted method per panel on the clustered peak/dip design, where NNS OLS improves recovery of the known curve relative to a single kernel bandwidth.</figcaption></figure>
+<p><strong>Why this example:</strong> observations cluster in three regions with a sharp dip between them, the setting the NNS literature identifies as favorable to partition-based fits, because a single kernel bandwidth must compromise across regions of very different local density. <strong>How to read the output:</strong> NNS OLS recovers the known curve more closely than the kernel here. The larger point comes from the article's 100-replication Monte Carlo: in this design the segmented fit matches the best smoother's average accuracy while varying far less from sample to sample, so its advantage is reliability rather than a lower average error. This example uses <code>order(4)</code>, one step finer than the default, because the sharp local features reward a little more resolution.</p>
+<h2>Diagnostics And Sensitivity</h2>
+<p>The verification script exports <code>table_model_diagnostics.csv</code> with a common in-sample <code>R^2</code>, observed RMSE, and true-curve RMSE. In the current run, <code>npregress kernel</code> and NNS OLS are close in the smooth education and water simulations, while NNS OLS improves substantially in the clustered peak/dip design.</p>
+<p><strong>How to read the sensitivity figures:</strong> each one overlays fits across <code>order()</code> and <code>noise()</code> choices. The question to ask is whether the substantive shape survives the variations: the plateau in education, the flat-then-rising threshold in water, the peak and dip in the clustered design. When a feature appears in every variant, it is safe to report; when it disappears between <code>order(2)</code> and <code>order(3)</code>, or between mean and median centers, report it as tentative. The clustered figure also shows the failure mode: at <code>order(5)</code> the fit adds local movement that improves in-sample fit but drifts from the true curve, the overfitting the article warns against. Running this small grid before reporting a bend is the habit the article recommends.</p>
+<figure><img src="../manuscript/fig_edu_sensitivity.png" class="img-fluid" alt="Education sensitivity figure"><figcaption>Education sensitivity to <code>order()</code> and <code>noise()</code>.</figcaption></figure>
+<figure><img src="../manuscript/fig_water_sensitivity.png" class="img-fluid" alt="Water sensitivity figure"><figcaption>Water sensitivity to <code>order()</code> and <code>noise()</code>.</figcaption></figure>
+<figure><img src="../manuscript/fig_cluster_sensitivity.png" class="img-fluid" alt="Clustered peak/dip sensitivity figure"><figcaption>Clustered peak/dip sensitivity to <code>order()</code>.</figcaption></figure>
+<h2>Real-Data Illustration: Motorcycle Impact</h2>
+<p>The simulated designs use known curves so each method can be scored against the truth. To watch <code>nnsreg</code> on data it was not built around, the article turns to the motorcycle-impact benchmark: accelerometer readings against time after impact (<code>webuse motorcycle</code>). The regressor is heavily tied and clustered, and the response has a flat run, a sharp trough, and a rebound, so this is the command's favorable case on real data.</p>
+<figure><img src="../manuscript/fig_moto_fits.png" class="img-fluid" alt="Motorcycle fit comparison, one method per panel"><figcaption>One fitted method per panel against the 133 accelerometer readings. The kernel smoother and NNS OLS both recover the trough and rebound; the connected NNS fit is rougher.</figcaption></figure>
+<figure><img src="../manuscript/fig_moto_knots.png" class="img-fluid" alt="Motorcycle NNS OLS fit with interior knots"><figcaption>The NNS OLS fit with its interior knots (from <code>e(knots)</code>), which concentrate in the impact trough where the response changes fastest.</figcaption></figure>
+<p>Because the true curve is unknown here, the article scores accuracy by repeated cross-validation. On held-out error the NNS OLS spline and the kernel smoother finish close together, with <code>npregress series</code> lowest; the value of <code>nnsreg</code> is the reportable segment slopes it hands back and its ability to score held-out points directly from stored results. Reproduce it with <code>motorcycle_example.do</code>.</p>
+
+<h2>Interactive Fit Explorer</h2>
+<p>The explorer below is a teaching visualization for one idea from the article: the tradeoff between resolution and noise that the <code>order()</code> option controls. It does not run <code>nnsreg</code> and it is not a Stata estimation result. Instead it lets you set a known curve and watch how a coarser or finer piecewise-linear fit tracks it, so the sensitivity figures above become intuitive.</p>
+<p><strong>What the sliders do.</strong> Three of them shape the <em>true</em> curve you are trying to recover: <strong>Threshold</strong> sets where the curve kinks (as pipe age 35 does in the water example), <strong>Post-threshold slope</strong> sets how steeply it rises after the kink, and <strong>Noise amplitude</strong> adds wiggle around it. The fourth, <strong>Partition order</strong>, controls the <em>fit</em>: raising it lets the line-segment fit use more pieces.</p>
+<p><strong>How to read the canvas.</strong> The gray dots are synthetic observations, the navy line is the smooth reference curve you set with the sliders, and the orange line is the piecewise-linear fit. The note under the canvas reports how many segments the current order uses.</p>
+<p><strong>What to try.</strong> Raise <strong>Partition order</strong> from 1 toward 6 and watch the orange fit hug the navy curve more closely, since more segments follow local shape. Then raise <strong>Noise amplitude</strong> and keep the order high, and watch the orange fit start chasing the noise instead of the curve. That is overfitting, the same failure the article shows at <code>order(5)</code> in the clustered design, and the reason the default is <code>order(3)</code> paired with a sensitivity check rather than the highest order available.</p>
+<p><strong>What this display simplifies.</strong> To stay fast in a browser, the segments here are placed at even spacing along the curve, and the fit is drawn on the reference curve rather than estimated from the scattered dots. The real <code>nnsreg</code> differs in exactly the way that matters: it places its knots <em>adaptively</em> from the data through the partial-moment partition, so they concentrate where the data bend rather than at even intervals, and it fits the actual observations. Use the worked examples and figures above for how the command truly behaves; use this explorer only to feel the detail-versus-noise tradeoff.</p>
+<div style="max-width:100%;overflow:hidden"><iframe src="nnsreg_interactive.html" style="width:100%;height:900px;border:1px solid #d8dee8;border-radius:8px;"></iframe></div>
+<h2>Install</h2>
+<pre><code>net install nnsreg, from("https://raw.githubusercontent.com/ericbooth/NNS-stata-public/main/github") replace</code></pre>
+</body>
+</html>

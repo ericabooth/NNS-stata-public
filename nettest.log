@@ -1,0 +1,147 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do /private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c7-ee224813b
+> 9b1/scratchpad/nettest.do 
+
+. clear all
+
+. sysdir set PLUS "/private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-
+> b4c7-ee224813b9b1/scratchpad/nnsinstall"
+
+. net from "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2
+> 036.org/My Drive/NNS-stata-public/github"
+-------------------------------------------------------------------------------
+/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My D
+> rive/NNS-stata-public/github/
+nnsreg: Nonlinear Nonparametric Statistics regression for Stata
+-------------------------------------------------------------------------------
+
+Author: Eric A. Booth, Texas 2036
+Distribution-Date: 20260718
+
+PACKAGES you could -net describe-:
+    nnsreg            Nonlinear Nonparametric Statistics regression
+-------------------------------------------------------------------------------
+
+. net install nnsreg, replace
+checking nnsreg consistency and verifying not already installed...
+installing into /private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c
+> 7-ee224813b9b1/scratchpad/nnsinstall/...
+installation complete.
+
+. which nnsreg
+/private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c7-ee224813b9b1/s
+> cratchpad/nnsinstall/n/nnsreg.ado
+*! version 1.3.2  18jul2026
+*! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.3.2: label connect-fit covariance/model metadata as heuristic/connect;
+*!        remove inherited regress postestimation flags that nnsreg does not
+*!        support; reject unsupported estat/margins calls cleanly; refresh
+*!        standardized coefficients after reposting; trim the stored
+*!        independent-variable name.
+*! 1.3.1: restrict vce() to robust/cluster; align cluster-missingness across
+*!        partitioning, estimation, prediction, and segment counts; clarify
+*!        order-depth implementation; warn on empty and thin x ranges; align
+*!        all retained connect-fit statistics with connected predictions.
+*! 1.3.0: new options minobs(), level(), vce() (method(ols) only), slopes,
+*!        knotlines; new stored results e(segments), e(knotmat), e(xmin),
+*!        e(xmax), e(minobs); guards for degenerate (near-constant) regressors
+*!        and perfect-fit covariance scaling; generate() now validated at parse
+*!        time and confirmed before estimation; predict notes out-of-range
+*!        scoring.
+*! 1.2.1: guard against missing regression-point coordinates when the
+*!        regressor support is clustered or gapped (empty central interval);
+*!        method(connect) e(r2), e(rmse), and e(V) scaling now use raw
+*!        (uncentered) residual sums of squares; option abbreviations
+*!        (ord, noi, meth, part, nop, gen) now accepted as documented
+
+. which nnsreg_p
+/private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c7-ee224813b9b1/s
+> cratchpad/nnsinstall/n/nnsreg_p.ado
+*! version 1.1.0  17jul2026
+*! nnsreg_p: Post-estimation predict program for nnsreg
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.1.0: note out-of-range scoring, since the terminal spline segments
+*!        extrapolate linearly beyond the estimation-sample range of the
+*!        regressor.
+
+. which nnsreg_estat
+/private/tmp/claude-502/-Users-ericbooth/9d4dc507-b47b-45f5-b4c7-ee224813b9b1/s
+> cratchpad/nnsinstall/n/nnsreg_estat.ado
+*! version 1.0.0  18jul2026
+*! nnsreg_estat: clean rejection of unsupported estat calls after nnsreg
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+
+. sysuse auto, clear
+(1978 automobile data)
+
+. nnsreg price mpg, order(2) method(ols) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   price
+Independent variable: mpg
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        74
+R-squared:            0.4673
+Root MSE:              2.2e+03
+
+------------------------------------------------------------------------------
+       price | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         mpg |  -1024.061   455.0696    -2.25   0.028    -1932.384   -115.7383
+       knot1 |   -618.236   877.9326    -0.70   0.484    -2370.597    1134.125
+       knot2 |   2300.624   798.4212     2.88   0.005      706.968    3894.279
+       knot3 |  -1061.195   754.6519    -1.41   0.164    -2567.487    445.0965
+       knot4 |   117.5645   793.0141     0.15   0.883    -1465.298    1700.427
+       knot5 |   299.3859   560.2038     0.53   0.595    -818.7857    1417.557
+       _cons |   24711.08   6620.523     3.73   0.000     11496.46     37925.7
+------------------------------------------------------------------------------
+
+. di "NET INSTALL TEST OK"
+NET INSTALL TEST OK
+
+. 
+end of do-file

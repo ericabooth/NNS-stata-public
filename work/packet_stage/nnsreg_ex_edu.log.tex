@@ -1,0 +1,74 @@
+. use texas_education, clear
+(Texas School District Operational Funding and Achievement (Simulated))
+{\smallskip}
+. nnsreg staar_pass spend_pupil, order(3) method(connect) noplot
+{\smallskip}
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9272
+Root MSE:             4.9380
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{64}
+             {\VBAR}           Heuristic reference
+  staar_pass {\VBAR} Coefficient  std. err.      t    P>|t|     [95\% conf. interval]
+\HLI{13}{\PLUS}\HLI{64}
+ spend_pupil {\VBAR}   6.414835   2.065966     3.11   0.002     2.345007    10.48466
+       knot1 {\VBAR}  -38.42267   12.13469    -3.17   0.002    -62.32728   -14.51806
+       knot2 {\VBAR}   33.71038   11.14115     3.03   0.003       11.763    55.65776
+       knot3 {\VBAR}   5.758648   1.765085     3.26   0.001     2.281537    9.235759
+       knot4 {\VBAR}   1.668066   7.469167     0.22   0.823    -13.04574    16.38187
+       knot5 {\VBAR}   6.868115   13.09004     0.52   0.600    -18.91846    32.65469
+       knot6 {\VBAR}  -10.78198   7.699945    -1.40   0.163     -25.9504    4.386446
+       knot7 {\VBAR}  -8.614286   1.875776    -4.59   0.000    -12.30945   -4.919122
+       knot8 {\VBAR}   9.589458    1.80015     5.33   0.000     6.043272    13.13564
+       knot9 {\VBAR}  -5.920695   1.735984    -3.41   0.001    -9.340479   -2.500911
+       _cons {\VBAR}    6.99154   11.78148     0.59   0.553    -16.21726    30.20034
+\HLI{13}{\BOTT}\HLI{64}
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+{\smallskip}
+. estimates store edu_connect
+{\smallskip}
+. quietly nnsreg staar_pass spend_pupil, order(3) method(ols) noplot
+{\smallskip}
+. estimates store edu_ols
+{\smallskip}
+. estimates table edu_connect edu_ols, b(\%9.3f) se(\%9.3f) stats(r2 rmse N)
+{\smallskip}
+\HLI{13}{\TOPT}\HLI{24}
+    Variable {\VBAR} edu_con{\tytilde}t    edu_ols   
+\HLI{13}{\PLUS}\HLI{24}
+ spend_pupil {\VBAR}     6.415       1.597  
+             {\VBAR}     2.066       1.723  
+       knot1 {\VBAR}   -38.423      -9.011  
+             {\VBAR}    12.135      10.122  
+       knot2 {\VBAR}    33.710      10.028  
+             {\VBAR}    11.141       9.293  
+       knot3 {\VBAR}     5.759       4.362  
+             {\VBAR}     1.765       1.472  
+       knot4 {\VBAR}     1.668       5.818  
+             {\VBAR}     7.469       6.230  
+       knot5 {\VBAR}     6.868      -3.221  
+             {\VBAR}    13.090      10.919  
+       knot6 {\VBAR}   -10.782      -4.405  
+             {\VBAR}     7.700       6.423  
+       knot7 {\VBAR}    -8.614      -4.087  
+             {\VBAR}     1.876       1.565  
+       knot8 {\VBAR}     9.589      -0.175  
+             {\VBAR}     1.800       1.502  
+       knot9 {\VBAR}    -5.921      -0.842  
+             {\VBAR}     1.736       1.448  
+       _cons {\VBAR}     6.992      32.086  
+             {\VBAR}    11.781       9.828  
+\HLI{13}{\PLUS}\HLI{24}
+          r2 {\VBAR}     0.927       0.949  
+        rmse {\VBAR}     4.938       4.119  
+           N {\VBAR}       250         250  
+\HLI{13}{\BOTT}\HLI{24}
+                          Legend: b/se

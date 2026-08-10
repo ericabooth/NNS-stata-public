@@ -1,0 +1,40 @@
+18 July 2026
+
+To the Editors
+The Stata Journal
+
+Dear Editors,
+
+Please consider the enclosed article, "nnsreg: Reportable segment slopes for
+nonlinear relationships in Stata," for publication in the Stata Journal.
+
+The article introduces nnsreg, a new command that fits a univariate Nonlinear
+Nonparametric Statistics (NNS) regression and posts the result as ordinary
+Stata estimation results. Its contribution is one of software and workflow
+rather than a new estimator: the command turns a fitted nonlinear curve into a
+small set of reportable, lincom-testable segment slopes with data-derived knot
+locations, so that a shape a smoother can only draw becomes a few reproducible
+statements about where a relationship is flat, steep, or changing. Three
+simulated designs with known curves, a 100-replication Monte Carlo study, and
+a cross-validated real-data illustration place the command honestly: the
+npregress smoothers recover smooth curves at least as accurately on average,
+while nnsreg adds a reportable segment summary and is steadier on clustered
+support. The article positions nnsreg among Stata's existing nonlinear-fit and
+change-point tools and is explicit about what it does and does not provide.
+
+The manuscript is original, is not under consideration elsewhere, and has not
+been published previously. I am the sole author.
+
+The submission is a flat, self-contained packet. nnsreg.tex compiles in place,
+and the included do-files, datasets, ado-files, and help file reproduce every
+example, figure, and table; the readme.txt file describes the contents and the
+reproduction steps. Figures are supplied as grayscale PDFs.
+
+I would be glad to answer any questions. Thank you for your consideration.
+
+Sincerely,
+
+Eric A. Booth
+Texas 2036
+Austin, TX
+eric.a.booth@gmail.com

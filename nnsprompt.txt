@@ -1,0 +1,219 @@
+Goal: create a new stata journal manuscript using thier stata latex style supporting new package for nns models.  Organize in subfolders all code, data examples, cited literature, manscript materials, etc here: '/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My Drive/NNS-stata-public'
+
+explore and learn about nns with online research and use these papers from paywalled journals : '/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My Drive/NNS-stata-public' as background learning , then 
+
+Approach: Create with it a fully, carefully documented nns stata package using only Stata code. Include a dofile that also tests the code with robust examples including visualizations. Construct all the github materials needed (or for SSC) like readme and toc and pkg files. 
+Once the code, examples, etc are constructed and working write the manuscript by (1) confering with the attached rough plan (here: '/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My Drive/NNS-stata-public/NNS_Stata_Implementation_Ideas.pdf') - this is just a scratchpad for inspiration, nothing here is vetted, then (2) coming up with better and more actionable/accessible use cases for my work based on what you know about me (max 2 use case examples) and carefully checking the content of the attached pdf and improving upon it to produce a defensible manuscript to accompany the manuscript.  then go back and edit code examples to match what's needed for the manuscript (you can leave in a 3rd example in the dofile code only if you find another relevant example).   make sure they all align. use visual inspection heavily (following SJ conventions). 
+be sure to carefully consider package options in stata that allow the user to specify variations or options in the model (this will be useful for the illustrated examples), assumptions, adn the ability to store results in the estimates store table for easy export to -coefplot- or other regression plotting packages (or even estimates table).  this is essential feature. 
+
+Finally create a folder to prepare the final submission following this guide carefully: https://www.stata-journal.com/submissions/ and looking at other articles for inspiration on style and voice especially from nick cox. also example here is helpful : https://www.stata-journal.com/production/sjxmpl/main.pdf
+
+Author info should be  Eric A. Booth, Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+
+
+
+
+
+
+
+Consider other articles that have cited the core 2013 book, including  these from google scholar, especially the first one (also attached here since it's behind a paywall). This first one has a great approach comparing to npregress type techniques.
+
+https://econpapers.repec.org/article/kapcompec/v_3a52_3ay_3a2018_3ai_3a4_3ad_3a10.1007_5fs10614-017-9713-5.htm
+
+--
+[HTML] Kernel regression coefficients for practical significance
+HD Vinod - Journal of Risk and Financial Management, 2022 - mdpi.com
+Quantitative researchers often use Student'st-test (and its p-values) to claim that a particular regressor is important (statistically significantly) for explaining the variation in a response …
+
+[PDF] Modeling elasticity: A brief survey of price elasticity of demand estimation methods
+M Sui, EW Rengifo, F Viole, K Jetta - Journal of Research in …, 2019 - researchgate.net For marketers and sales professionals, estimating price elasticities of their products is crucial for understanding sales and setting pricing strategies. Yet, given the variety of possible …
+
+
+[PDF] Clustering and curve fitting by line segments
+HD Vinod, F Viole - 2018 - preprints.org
+Nonlinear nonparametric statistics (NNS) algorithm offers new tools for curve fitting. 1 A relationship between k-means clustering and NNS regression points is explored with …
+
+How to Apply Advanced Statistical Analysis to Computational Economics: Methods and Insights.
+
+M Song, R Fisher - Computational Economics, 2018 - openurl.ebsco.com
+
+The theme of this special volume concerns advanced statistical analysis. By mining meaningful and important information, advanced statistical analysis can bring new insights …
+
+
+Partitional Estimation Using Partial Moments
+
+F Viole - Available at SSRN 3592491, 2020 - papers.ssrn.com
+Function approximation is at the heart of machine learning. Given a dataset comprised ofinputs and outputs, we assume that there is an unknown underlying function that is …
+
+
+Beyond correlation: Using the elements of variance for conditional means and probabilities
+
+F Viole - Available at SSRN 2745308, 2017 - papers.ssrn.com
+
+We derive conditional means from partial moment quadrants of the joint distribution.
+
+Restricting quadrants enables scenario analysis without the need for an underlying …
+
+
+Comparing Old and New Partial Derivative Estimates from Nonlinear Nonparametric Regressions
+
+HD Vinod, F Viole - Available at SSRN 3681104, 2020 - papers.ssrn.com
+
+Partial derivatives have a special place in economics since the marginal revolution of the 1850s. We present results from multivariate partial derivative estimates using nonlinear non …
+
+
+
+NNS TSD - Package 'NNS', 2020 - download.nust.na
+Arguments variables a numeric matrix or data. frame of contemporaneous time-series to forecast. h integer; 1 (default) Number of periods to forecast. tau positive integer [> 0]; 1 …
+
+
+
+
+___________________
+after that is done: do one more QC pass for (1) accuracy of methods, code, and visualizations are clear and labels dont overlap and (2) check for any llm like writing (make sure all sentence do have objects, no jargon, no exaggerated language about something being the best or novel, remove most unneeded emdashes that coudl be commas or semicolons (4) make sure any claim has a 'because' type substantiation statement to follow (5) explain all conventions, acronyms or statistical jargon clearly (even if in footnotes ).  
+
+then revisit the github readme to ensure relevant installtion instructions are there.  allow inclusion of the folder for the draft manuscript on github too
+Finally create a standalone webpage using -webdoc2- taht includes a summary of the method and worked example with only code folded into wd or button environments, figures/viz outside any wd or button. but the main feature being one new addition to each example you provided in the m.s., now include an interactive visualization to show how nns estimates or fit to a line shifts over simulated values using -statashiny- . get creative here and look to other similar rshiny packages that help the reader understand the consequences of choices for implementing nns, or nns vs. npregress, etc or implementing nns with certain options turned on/off/new level. feel free to produce more than one shiny object for the user to use/explore 
+
+
+_________
+Some of this work has been started, here's the progress list:
+Task Checklist: nnsreg Implementation
+[x] Setup project subfolders
+[x] Write data simulation script (simulated_data.do)
+[x] Implement NNS regression and partitioning in Mata (nnsreg.ado)
+[x] Implement custom post-estimation prediction program (nnsreg_p.ado)
+[x] Write SMCL help documentation (nnsreg.sthlp)
+[x] Create test suite (test_nnsreg.do) and run verification
+[ ] Install Stata Journal LaTeX styles via sjlatex
+[ ] Write Stata Journal manuscript (nnsreg.tex and nnsreg.bib) and compile to PDF
+[ ] Create GitHub files (README.md, stata.toc, nnsreg.pkg)
+[ ] Generate webpage and interactive visualization (nnsreg_web.do, HTML, Shiny)
+[ ] Run final quality control pass (prose checking, formatting, visual inspections)
+
+And here is another LLMs implementation plan to consider when shaping up your own planning:
+# Implementation Plan: nnsreg (Nonlinear Nonparametric Statistics in Stata)
+
+This document outlines the design and implementation strategy for the new Stata package `nnsreg`, which implements Nonlinear Nonparametric Statistics (NNS) regression based on partial moments and hierarchical clustering. It also outlines the accompanying Stata Journal manuscript, test suite, and web resources.
+
+## Goal Description
+
+Implement a fully documented, high-performing NNS regression package for Stata using only Stata code and Mata. The command will support:
+1. **Adaptive clustering**: Data-driven partitioning of the independent variable using partial moments.
+2. **Flexible estimation**: Piecewise linear fitting by either connecting quadrant means (`method(connect)`) or fitting a linear spline via OLS (`method(ols)`).
+3. **Integration with Stata post-estimation**: Complete compatibility with `estimates store`, `estimates table`, `predict`, `margins`, and plotting commands like `coefplot`.
+4. **Reproducible policy applications**: Illustrating NNS on two simulated Texas-focused policy datasets (school spending vs. test scores, and infrastructure age vs. water loss).
+5. **Stata Journal manuscript**: Written in LaTeX using the official `statapress` style.
+6. **Ancillary resources**: GitHub distribution files, an HTML documentation page using `webdoc2`, and interactive visualizations using `statashiny`.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Use Case Selection**: We have replaced the generic use cases in the rough plan with two highly specific, Texas-relevant policy use cases aligned with Eric's role at Texas 2036:
+> 1. **School District Spending and Student Achievement**: Non-linear relationship with diminishing marginal returns.
+> 2. **Water Infrastructure Age and Water Loss**: Non-linear relationship showing threshold breakdown effects.
+>
+> Please confirm if these use cases are suitable for the manuscript.
+
+> [!NOTE]
+> **Spline Formulation**: By reformulating both standard NNS (connecting quadrant means) and OLS NNS as a linear spline regression on data-driven knots, we achieve native compatibility with all of Stata's post-estimation features (like `predict`, `margins`, `estimates store`, and `coefplot`).
+
+---
+
+## Proposed Changes
+
+### Component 1: Stata Package Code (`code/`)
+
+#### [NEW] [nnsreg.ado](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/code/nnsreg.ado)
+Stata wrapper and estimation command. It will:
+- Parse syntax: `nnsreg depvar indepvar [if] [in] [, order(integer) noise(string) method(string) noplot graph_opts(string) generate(string)]`
+- Call Mata for binary-heap hierarchical partitioning and knot selection.
+- Generate spline basis variables at the partitioned knots.
+- Fit the model using OLS and optionally overwrite the coefficient vector with the exact NNS quadrant-mean connections.
+- Post estimation results using `ereturn post` to enable post-estimation tools.
+
+#### [NEW] [nnsreg_p.ado](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/code/nnsreg_p.ado)
+Post-estimation prediction command. It will:
+- Recreate the spline basis dynamically on prediction evaluation points (supporting out-of-sample extrapolation).
+- Compute fitted values using `e(b)` and store them in the target variable.
+
+#### [NEW] [nnsreg.sthlp](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/code/nnsreg.sthlp)
+SMCL help file detailing syntax, options, stored results, and clickable examples.
+
+---
+
+### Component 2: Reproducibility & Testing (`examples/`)
+
+#### [NEW] [simulated_data.do](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/examples/simulated_data.do)
+Generates the simulated policy datasets:
+1. `texas_education.dta`: School spending per pupil vs. STAAR math passing rates.
+2. `texas_water.dta`: Average municipal water pipe age vs. annual water loss rate.
+
+#### [NEW] [test_nnsreg.do](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/examples/test_nnsreg.do)
+Runs robust test cases on both datasets, performs visual comparisons, exports figures to the manuscript folder, and verifies `coefplot` integration.
+
+---
+
+### Component 3: Manuscript Materials (`manuscript/`)
+
+#### [NEW] [nnsreg.tex](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/manuscript/nnsreg.tex)
+LaTeX manuscript written in the Stata Journal style. Follows Nick Cox's authoritative, clear, and historical voice.
+Sections:
+1. Abstract (concise, jargon-free)
+2. Introduction (history of NNS, limitations of kernel smoothers, boundary effects)
+3. Methodology (partial moments, partitioning algorithm, spline basis formulation)
+4. Syntax and Options
+5. Simulated Policy Examples (Texas Education and Water Infrastructure)
+6. Comparative Performance (computation speed vs. `npregress`, boundary behavior vs. `lpoly`)
+7. Conclusion
+8. References
+
+#### [NEW] [nnsreg.bib](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/manuscript/nnsreg.bib)
+BibTeX database containing all cited literature (Viole, Nawrocki, Vinod, Cox, Jann, Hayfield/Racine).
+
+#### [NEW] [statapress.cls](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/manuscript/statapress.cls)
+#### [NEW] [sj.sty](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/manuscript/sj.sty)
+#### [NEW] [stata.sty](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/manuscript/stata.sty)
+Stata Journal LaTeX templates/style files installed from `sjlatex`.
+
+---
+
+### Component 4: GitHub Materials (`github/`)
+
+#### [NEW] [README.md](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/github/README.md)
+Comprehensive package description, installation guide from GitHub/SSC, quick syntax reference, and sample visualizations.
+
+#### [NEW] [stata.toc](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/github/stata.toc)
+Table of contents for net installation.
+
+#### [NEW] [nnsreg.pkg](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/github/nnsreg.pkg)
+Package control file listing all files to install.
+
+---
+
+### Component 5: Standalone Webpage & Interactive Viz (`webpage/`)
+
+#### [NEW] [nnsreg_web.do](file:///Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My%20Drive/NNS-stata-public/webpage/nnsreg_web.do)
+Stata script that uses `webdoc2` to compile an elegant HTML page containing:
+- A clear prose explanation of the NNS method.
+- Folded code blocks showing how to fit and visualize models.
+- Embedded static figures.
+- Dynamic `statashiny` configurations demonstrating how NNS fits shift as parameters (order, noise) change.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. Run `simulated_data.do` to create testing datasets.
+2. Run `test_nnsreg.do` to check command output and plot exports. We will execute these commands via Stata MP CLI:
+   `/Applications/StataNow/StataMP.app/Contents/MacOS/stata-mp -b do test_nnsreg.do`
+3. Compile the LaTeX manuscript:
+   `pdflatex nnsreg.tex`
+   `bibtex nnsreg`
+   `pdflatex nnsreg.tex`
+
+### Manual Verification
+1. Visually inspect exported PDF graphs for overlapping labels and alignment using the SJ color scheme.
+2. Verify that `estimates table` and `coefplot` display correct coefficient structures.
+3. Inspect the compiled HTML documentation.

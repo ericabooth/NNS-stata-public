@@ -1,0 +1,332 @@
+clear all
+mata:
+// Median calculator
+real scalar nns_median(real colvector v)
+{
+    real colvector sorted
+    real scalar n, mid
+    sorted = sort(v, 1)
+    n = rows(sorted)
+    if (n == 0) return(.)
+    if (n - 2 * floor(n / 2) == 1) {
+        return(sorted[(n+1)/2])
+    }
+    else {
+        mid = n / 2
+        return((sorted[mid] + sorted[mid+1]) / 2)
+    }
+}
+
+// Simple Mean calculator
+real scalar nns_mean(real colvector v)
+{
+    if (rows(v) == 0) return(.)
+    return(sum(v) / rows(v))
+}
+
+// Simple Linear Regression (returns intercept, slope)
+real rowvector nns_fast_lm(real colvector x, real colvector y)
+{
+    real scalar b, a, mx, my, var_x
+    real colvector diff_x, diff_y
+    real rowvector res
+    
+    mx = nns_mean(x)
+    my = nns_mean(y)
+    diff_x = x :- mx
+    diff_y = y :- my
+    var_x = sum(diff_x :* diff_x)
+    if (var_x == 0) {
+        b = 0
+    }
+    else {
+        b = sum(diff_x :* diff_y) / var_x
+    }
+    a = my - b * mx
+    
+    res = J(1, 2, .)
+    res[1] = a
+    res[2] = b
+    return(res)
+}
+
+// Consolidate duplicate X values by averaging Y values
+void nns_consolidate(real colvector rx, real colvector ry, real colvector urx, real colvector ury)
+{
+    real colvector idx
+    real scalar i, n, count, sum_y, p
+    
+    idx = order(rx, 1)
+    rx = rx[idx]
+    ry = ry[idx]
+    n = rows(rx)
+    
+    if (n <= 1) {
+        urx = rx
+        ury = ry
+        return
+    }
+    
+    urx = J(n, 1, .)
+    ury = J(n, 1, .)
+    count = 1
+    urx[1] = rx[1]
+    sum_y = ry[1]
+    p = 1
+    for (i = 2; i <= n; i++) {
+        if (rx[i] == rx[i-1]) {
+            sum_y = sum_y + ry[i]
+            p = p + 1
+        }
+        else {
+            ury[count] = sum_y / p
+            count = count + 1
+            urx[count] = rx[i]
+            sum_y = ry[i]
+            p = 1
+        }
+    }
+    ury[count] = sum_y / p
+    
+    urx = urx[1..count]
+    ury = ury[1..count]
+}
+
+// Endpoint Y estimation
+real scalar nns_endpoint_y(real colvector x, real colvector y, real colvector rp_x, real scalar low)
+{
+    real scalar boundary, reg_range, mid_range, y_boundary_val
+    real colvector boundary_mask, mid_mask, y_boundary, x_mid, y_mid, boundary_y_val
+    real rowvector fit_boundary, fit_mid
+    
+    if (low) {
+        boundary = min(x)
+        reg_range = min(rp_x)
+    }
+    else {
+        boundary = max(x)
+        reg_range = max(rp_x)
+    }
+    mid_range = nns_mean((boundary \ reg_range))
+    
+    if (low) {
+        boundary_mask = (x :<= reg_range)
+        mid_mask = (x :<= mid_range)
+    }
+    else {
+        boundary_mask = (x :>= reg_range)
+        mid_mask = (x :>= mid_range)
+    }
+    
+    y_boundary = select(y, boundary_mask)
+    y_mid = select(y, mid_mask)
+    x_mid = select(x, mid_mask)
+    
+    if (rows(uniqrows(x_mid)) > 1 && rows(y_boundary) > 5) {
+        fit_boundary = nns_fast_lm(select(x, boundary_mask), y_boundary)
+        fit_mid = nns_fast_lm(x_mid, y_mid)
+        
+        y_boundary_val = fit_boundary[1] + fit_boundary[2] * boundary
+        y_boundary_val = (y_boundary_val * rows(y_boundary) + (fit_mid[1] + fit_mid[2] * boundary) * rows(y_mid)) / (rows(y_boundary) + rows(y_mid))
+        return(y_boundary_val)
+    }
+    
+    boundary_y_val = select(y, x :== boundary)
+    return(nns_mean(uniqrows(boundary_y_val)))
+}
+
+// Central point logic (returns central_x, central_y)
+real rowvector nns_central_point(real colvector rp_x, real colvector rp_y, real colvector x, real colvector y)
+{
+    real scalar n_points, r1, r2, central_x, central_y
+    real colvector row_positions, mask, x_sub, y_sub
+    real rowvector res
+    
+    n_points = rows(rp_x)
+    row_positions = 1::n_points
+    r1 = floor(nns_median(row_positions))
+    r2 = ceil(nns_median(row_positions))
+    
+    if (r1 != r2) {
+        mask = (x :>= rp_x[r1]) :&& (x :<= rp_x[r2])
+        x_sub = select(x, mask)
+        y_sub = select(y, mask)
+        central_x = nns_mean((rp_x[r1] \ rp_x[r2]))
+        central_y = nns_mean(y_sub)
+    }
+    else {
+        central_x = rp_x[r1]
+        central_y = rp_y[r1]
+    }
+    
+    res = J(1, 2, .)
+    res[1] = central_x
+    res[2] = central_y
+    return(res)
+}
+
+// Main NNS Regression Mata wrapper
+void nns_reg_mata(string scalar depvar, string scalar indepvar, string scalar touse, 
+                  real scalar order, string scalar noise, string scalar b_name, string scalar knots_name)
+{
+    real colvector x, y, quad_ids, prior_ids, unique_quads, counts, mask, x_sub, y_sub
+    real scalar N, depth, i, j, P, cx, any_split, obs_req
+    real colvector rp_x, rp_y, unique_priors
+    real scalar min_x, max_x, min_y, max_y
+    real rowvector central
+    real colvector combined_x, combined_y, sorted_x, sorted_y
+    real colvector knots
+    string scalar knots_str
+    real colvector rise, run, slope, beta
+    real scalar alpha, M
+    real matrix b_nns
+    
+    // Load data from Stata
+    x = st_data(., indepvar, touse)
+    y = st_data(., depvar, touse)
+    N = rows(x)
+    
+    // Initialize quadrant IDs (binary heap structure)
+    quad_ids = J(N, 1, 1)
+    prior_ids = quad_ids
+    obs_req = 8 // default min size to stop partitioning
+    
+    // Partitioning Loop
+    for (depth = 1; depth <= order; depth++) {
+        prior_ids = quad_ids
+        unique_quads = uniqrows(quad_ids)
+        
+        counts = J(rows(unique_quads), 1, 0)
+        for (i = 1; i <= rows(unique_quads); i++) {
+            counts[i] = sum(quad_ids :== unique_quads[i])
+        }
+        
+        any_split = 0
+        for (i = 1; i <= rows(unique_quads); i++) {
+            if (counts[i] > obs_req) {
+                P = unique_quads[i]
+                mask = (quad_ids :== P)
+                x_sub = select(x, mask)
+                
+                // Compute center
+                if (noise == "median") {
+                    cx = nns_median(x_sub)
+                }
+                else {
+                    cx = nns_mean(x_sub)
+                }
+                
+                // Split observations: left child = 2P-1, right child = 2P
+                for (j = 1; j <= N; j++) {
+                    if (mask[j]) {
+                        if (x[j] > cx) {
+                            quad_ids[j] = 2 * P
+                        }
+                        else {
+                            quad_ids[j] = 2 * P - 1
+                        }
+                    }
+                }
+                any_split = 1
+            }
+        }
+        if (!any_split) break
+    }
+    
+    // Group by prior_ids to compute regression points
+    unique_priors = uniqrows(prior_ids)
+    K = rows(unique_priors)
+    rp_x = J(K, 1, .)
+    rp_y = J(K, 1, .)
+    for (i = 1; i <= K; i++) {
+        mask = (prior_ids :== unique_priors[i])
+        x_sub = select(x, mask)
+        y_sub = select(y, mask)
+        if (noise == "median") {
+            rp_x[i] = nns_median(x_sub)
+            rp_y[i] = nns_median(y_sub)
+        }
+        else {
+            rp_x[i] = nns_mean(x_sub)
+            rp_y[i] = nns_mean(y_sub)
+        }
+    }
+    
+    // Calculate endpoints
+    min_x = min(x)
+    max_x = max(x)
+    min_y = nns_endpoint_y(x, y, rp_x, 1)
+    max_y = nns_endpoint_y(x, y, rp_x, 0)
+    
+    // Calculate central point
+    central = nns_central_point(rp_x, rp_y, x, y)
+    
+    // Combine all regression points
+    combined_x = (min_x \ max_x \ central[1] \ rp_x)
+    combined_y = (min_y \ max_y \ central[2] \ rp_y)
+    
+    // Consolidate duplicate X values
+    nns_consolidate(combined_x, combined_y, sorted_x, sorted_y)
+    
+    // The interior knots are sorted_x[2..M+1] where M = rows(sorted_x) - 2
+    M = rows(sorted_x) - 2
+    if (M > 0) {
+        knots = sorted_x[2..M+1]
+        knots_str = ""
+        for (i = 1; i <= M; i++) {
+            knots_str = knots_str + " " + sprintf("%20.15f", knots[i])
+        }
+        st_local(knots_name, strtrim(knots_str))
+    }
+    else {
+        st_local(knots_name, "")
+    }
+    
+    // Compute coefficients for connect method
+    // slopes are dy/dx
+    rise = sorted_y[2..rows(sorted_y)] - sorted_y[1..rows(sorted_y)-1]
+    run = sorted_x[2..rows(sorted_x)] - sorted_x[1..rows(sorted_x)-1]
+    slope = J(rows(run), 1, 0)
+    for (i = 1; i <= rows(run); i++) {
+        if (run[i] == 0) {
+            slope[i] = 0
+        }
+        else {
+            slope[i] = rise[i] / run[i]
+        }
+    }
+    
+    // constant alpha
+    alpha = sorted_y[1] - slope[1] * sorted_x[1]
+    
+    // beta
+    beta = J(rows(slope), 1, 0)
+    beta[1] = slope[1]
+    for (i = 2; i <= rows(slope); i++) {
+        beta[i] = slope[i] - slope[i-1]
+    }
+    
+    // construct b_nns matrix (row vector)
+    b_nns = (beta' , alpha)
+    st_matrix(b_name, b_nns)
+}
+
+// Calculate NNS fitted values (Mata helper)
+void nns_calc_fitted(string scalar depvar, string scalar sp_vars, string scalar b_name, 
+                     string scalar touse, string scalar y_hat_var)
+{
+    real matrix X_spline
+    real rowvector b
+    real colvector y_hat
+    string rowvector vars
+    
+    vars = tokens(sp_vars)
+    X_spline = st_data(., vars, touse)
+    X_spline = X_spline , J(rows(X_spline), 1, 1) // add constant column
+    
+    b = st_matrix(b_name)
+    y_hat = X_spline * b'
+    
+    st_store(., y_hat_var, touse, y_hat)
+}
+end

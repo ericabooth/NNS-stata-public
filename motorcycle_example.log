@@ -1,0 +1,1356 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do examples/motorcycle_example.do 
+
+. *! version 1.1.0  17jul2026
+. *! Real-data illustration for the nnsreg Stata Journal manuscript.
+. *!
+. *! Data: the motorcycle crash-helmet impact experiment (accelerometer reading
+> s
+. *! against time after impact).  Originally Silverman (1985, JRSS-B 47: 1-52),
+. *! reprinted in Fan and Gijbels (1996), and shipped by Stata Press as
+. *! motorcycle.dta (webuse motorcycle); it is the dataset in the [R] lpoly
+. *! examples.  The regressor (time) is heavily tied and clustered (94 distinct
+. *! values in 133 observations), the mean response has a flat pre-impact run
+. *! followed by a sharp trough and rebound, and the noise is strongly
+. *! heteroskedastic, making this a demanding applied illustration.
+. *!
+. *! Produces:
+. *!   - manuscript/fig_moto_fits.pdf/.png : four fits, one method per panel
+. *!   - manuscript/fig_moto_knots.pdf/.png: fit, knots, and segment-support di
+> agnostic
+. *!   - manuscript/table_moto_diag.csv    : in-sample diagnostics
+. *!   - manuscript/table_moto_cv.csv      : repeated k-fold held-out RMSE
+. *!
+. *! Because the mean curve is unknown, method accuracy is judged by repeated
+. *! k-fold cross-validation (held-out RMSE), the real-data analogue of the
+. *! true-curve RMSE used with the simulated designs.  npregress kernel is scor
+> ed
+. *! through margins at the held-out regressor values; npregress series uses
+. *! predict, tolerance(100).  nnsreg, regress, and mkspline+regress score held
+> -out
+. *! rows directly with predict.
+. clear all
+
+. set more off
+
+. set scheme sj
+
+. adopath + "code"
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+  [7]              "code"
+
+. cap mkdir "manuscript"
+
+. 
+. // Featured partition depth for the single-run figures and slope table.
+. local ORD = 3
+
+. // Cross-validation settings.
+. local CVREPS = 20
+
+. local KFOLD  = 5
+
+. local CVSEED = 90210
+
+. 
+. which nnsreg
+code/nnsreg.ado
+*! version 1.3.1  17jul2026
+*! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.3.1: restrict vce() to robust/cluster; align cluster-missingness across
+*!        partitioning, estimation, prediction, and segment counts; clarify
+*!        order-depth implementation; warn on empty and thin x ranges.
+*! 1.3.0: new options minobs(), level(), vce() (method(ols) only), slopes,
+*!        knotlines; new stored results e(segments), e(knotmat), e(xmin),
+*!        e(xmax), e(minobs); guards for degenerate (near-constant) regressors
+*!        and perfect-fit covariance scaling; generate() now validated at parse
+*!        time and confirmed before estimation; predict notes out-of-range
+*!        scoring.
+*! 1.2.1: guard against missing regression-point coordinates when the
+*!        regressor support is clustered or gapped (empty central interval);
+*!        method(connect) e(r2), e(rmse), and e(V) scaling now use raw
+*!        (uncentered) residual sums of squares; option abbreviations
+*!        (ord, noi, meth, part, nop, gen) now accepted as documented
+
+. 
+. // Grayscale-safe brand grays (print and screen): dark navy fit, mid-gray dot
+> s.
+. local CDOT  "gs9"
+
+. local CFIT  "27 45 85"
+
+. local CFIT2 "108 122 141"
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // Load and describe
+. // --------------------------------------------------------------------------
+> -
+. webuse motorcycle, clear
+(Motorcycle data from Fan & Gijbels (1996))
+
+. count
+  133
+
+. local Nmoto = r(N)
+
+. quietly levelsof time, local(utimes)
+
+. di as text "N = `Nmoto', distinct time values = " `: word count `utimes''
+N = 133, distinct time values = 94
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // Helper: in-sample RMSE against the observed outcome (no true curve here)
+. // --------------------------------------------------------------------------
+> -
+. capture program drop moto_rmse
+
+. program define moto_rmse, rclass
+  1.     syntax, Fitvar(name) Yvar(name)
+  2.     tempvar e2
+  3.     quietly gen double `e2' = (`yvar' - `fitvar')^2
+  4.     quietly summarize `e2', meanonly
+  5.     return scalar rmse = sqrt(r(mean))
+  6.     quietly correlate `yvar' `fitvar'
+  7.     return scalar r2 = r(rho)^2
+  8. end
+
+. 
+. // Panel: gray dots + one dark fitted curve, one method per panel.
+. capture program drop moto_panel
+
+. program define moto_panel
+  1.     syntax, Fitvar(name) PTitle(string asis) PSub(string asis) GName(name)
+  2.     twoway ///
+>         (scatter accel time, mcolor("108 122 141%45") msymbol(Oh) msize(small
+> )) ///
+>         (line `fitvar' time, sort lcolor("27 45 85") lwidth(medthick)), ///
+>         title(`ptitle', size(medsmall) position(11) span) ///
+>         subtitle(`psub', size(small) position(11) span color("108 122 141")) 
+> ///
+>         ytitle("") xtitle("") ///
+>         ylabel(-150(50)100, labsize(small) angle(horizontal)) ///
+>         xlabel(0(20)60, labsize(small)) ///
+>         legend(off) graphregion(color(white)) name(`gname', replace) nodraw
+  3. end
+
+. 
+. tempname diag
+
+. postfile `diag' str30 model double(r2 rmse_obs) nknots using ///
+>     "examples/moto_diag.dta", replace
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // Single-run fits (in sample) and the fits figure
+. // --------------------------------------------------------------------------
+> -
+. regress accel time
+
+      Source |       SS           df       MS      Number of obs   =       133
+-------------+----------------------------------   F(1, 131)       =     12.62
+       Model |  27078.8837         1  27078.8837   Prob > F        =    0.0005
+    Residual |  281143.825       131  2146.13607   R-squared       =    0.0879
+-------------+----------------------------------   Adj R-squared   =    0.0809
+       Total |  308222.709       132  2335.02052   Root MSE        =    46.326
+
+------------------------------------------------------------------------------
+       accel | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        time |   1.090675   .3070497     3.55   0.001     .4832577    1.698093
+       _cons |  -53.00792   8.712499    -6.08   0.000    -70.24332   -35.77252
+------------------------------------------------------------------------------
+
+. predict double fit_lin, xb
+
+. moto_rmse, fitvar(fit_lin) yvar(accel)
+
+. post `diag' ("Linear regression") (r(r2)) (r(rmse)) (0)
+
+. local rl : di %5.2f r(rmse)
+
+. 
+. quietly npregress kernel accel time
+
+. predict double fit_np, mean
+
+. moto_rmse, fitvar(fit_np) yvar(accel)
+
+. post `diag' ("npregress kernel") (r(r2)) (r(rmse)) (.)
+
+. local rk : di %5.2f r(rmse)
+
+. 
+. quietly npregress series accel time
+
+. predict double fit_series, mean
+
+. moto_rmse, fitvar(fit_series) yvar(accel)
+
+. post `diag' ("npregress series") (r(r2)) (r(rmse)) (.)
+
+. 
+. nnsreg accel time, order(`ORD') method(connect) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   accel
+Independent variable:  time
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        133
+R-squared:            0.5949
+Root MSE:             32.5273
+
+------------------------------------------------------------------------------
+       accel | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        time |  -.2863469   4.744143    -0.06   0.952    -9.681042    9.108348
+       knot1 |  -.2687602   6.631654    -0.04   0.968    -13.40124    12.86372
+       knot2 |  -23.05465   11.95814    -1.93   0.056    -46.73502    .6257199
+       knot3 |  -13.12656   19.29048    -0.68   0.498    -51.32697    25.07385
+       knot4 |   46.61132   21.45193     2.17   0.032      4.13065    89.09199
+       knot5 |  -23.92896    20.7502    -1.15   0.251       -65.02    17.16209
+       knot6 |   32.59856   20.26017     1.61   0.110    -7.522091    72.71921
+       knot7 |  -32.15613   19.87231    -1.62   0.108    -71.50872    7.196463
+       knot8 |     95.885   30.48412     3.15   0.002     35.51814    156.2519
+       knot9 |  -85.95224   26.50094    -3.24   0.002    -138.4313   -33.47316
+      knot10 |    90.6476   28.54496     3.18   0.002     34.12081    147.1744
+      knot11 |  -90.38108   23.87997    -3.78   0.000    -137.6699   -43.09223
+      knot12 |   115.3242   102.6766     1.12   0.264    -88.00351    318.6519
+      knot13 |   -113.003   103.8415    -1.09   0.279    -318.6375    92.63149
+       _cons |  -.2199712   27.44866    -0.01   0.994    -54.57579    54.13585
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. local k_conn : word count `e(knots)'
+
+. predict double fit_conn
+note: 2 observation(s) scored outside the estimation-sample range of  time; the
+>  terminal segments extrapolate linearly.
+
+. moto_rmse, fitvar(fit_conn) yvar(accel)
+
+. post `diag' ("NNS connect, order(`ORD')") (r(r2)) (r(rmse)) (`k_conn')
+
+. local rc : di %5.2f r(rmse)
+
+. 
+. nnsreg accel time, order(`ORD') method(ols) vce(robust) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   accel
+Independent variable:  time
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        133
+R-squared:            0.8011
+Root MSE:             22.7935
+
+------------------------------------------------------------------------------
+             |               Robust
+       accel | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        time |    .085672   .3010991     0.28   0.777    -.5105862    .6819301
+       knot1 |  -1.029052   .8138725    -1.26   0.209    -2.640741    .5826372
+       knot2 |   -21.8522   5.385398    -4.06   0.000    -32.51675   -11.18764
+       knot3 |  -8.253965   12.63875    -0.65   0.515    -33.28213     16.7742
+       knot4 |   27.46007   16.90239     1.62   0.107    -6.011262     60.9314
+       knot5 |  -7.574713   15.22496    -0.50   0.620    -37.72428    22.57485
+       knot6 |   24.07525   11.82694     2.04   0.044     .6546848    47.49581
+       knot7 |   12.72543   16.43581     0.77   0.440    -19.82194     45.2728
+       knot8 |   2.640839   34.58523     0.08   0.939    -65.84734    71.12902
+       knot9 |  -13.42931   26.86126    -0.50   0.618    -66.62192     39.7633
+      knot10 |  -30.69071   28.46886    -1.08   0.283     -87.0668    25.68538
+      knot11 |   13.11706   24.03104     0.55   0.586    -34.47093    60.70506
+      knot12 |  -21.78003   51.07618    -0.43   0.671    -122.9248    79.36471
+      knot13 |   26.01951     51.355     0.51   0.613    -75.67737    127.7164
+       _cons |  -1.669142   1.342582    -1.24   0.216    -4.327819    .9895355
+------------------------------------------------------------------------------
+
+. local k_ols : word count `e(knots)'
+
+. predict double fit_ols
+note: 2 observation(s) scored outside the estimation-sample range of  time; the
+>  terminal segments extrapolate linearly.
+
+. moto_rmse, fitvar(fit_ols) yvar(accel)
+
+. post `diag' ("NNS OLS, order(`ORD')") (r(r2)) (r(rmse)) (`k_ols')
+
+. local ro : di %5.2f r(rmse)
+
+. estimates store moto_ols
+
+. 
+. nnsreg accel time, order(`ORD') method(ols) noise(median) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   accel
+Independent variable:  time
+Method:               ols
+Noise reduction:      median
+Partition:            xy
+Order:                3
+Number of obs:        133
+R-squared:            0.7960
+Root MSE:             23.0809
+
+------------------------------------------------------------------------------
+       accel | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        time |   .0676831   2.758148     0.02   0.980    -5.394201    5.529567
+       knot1 |   -1.30992   4.258162    -0.31   0.759     -9.74224      7.1224
+       knot2 |  -68.49591   99.02197    -0.69   0.490    -264.5864    127.5946
+       knot3 |    58.8648   117.2312     0.50   0.617     -173.285    291.0146
+       knot4 |  -31.65712   33.33525    -0.95   0.344    -97.66999    34.35575
+       knot5 |   28.32393   18.58771     1.52   0.130    -8.484798    65.13267
+       knot6 |   21.63271   7.001531     3.09   0.002     7.767774    35.49765
+       knot7 |   31.14288   16.87723     1.85   0.068    -2.278627    64.56439
+       knot8 |   -23.2165   25.07782    -0.93   0.356    -72.87742    26.44442
+       knot9 |   13.02523    21.0783     0.62   0.538    -28.71554    54.76601
+      knot10 |  -26.07376   14.86069    -1.75   0.082    -55.50197    3.354459
+      knot11 |  -6.316934   5.752726    -1.10   0.274     -17.7089     5.07503
+      knot12 |   4.039574   5.974952     0.68   0.500    -7.792458    15.87161
+      knot13 |   .1410901   5.924726     0.02   0.981    -11.59148    11.87366
+       _cons |  -1.713006   17.65922    -0.10   0.923    -36.68307    33.25706
+------------------------------------------------------------------------------
+
+. predict double fit_ols_med
+note: 2 observation(s) scored outside the estimation-sample range of  time; the
+>  terminal segments extrapolate linearly.
+
+. moto_rmse, fitvar(fit_ols_med) yvar(accel)
+
+. post `diag' ("NNS OLS, order(`ORD') median") (r(r2)) (r(rmse)) (`: word count
+>  `e(knots)'')
+
+. postclose `diag'
+
+. 
+. moto_panel, fitvar(fit_lin) ptitle("A. Linear regression") ///
+>     psub("In-sample RMSE = `rl'") gname(m_p1)
+
+. moto_panel, fitvar(fit_np) ptitle("B. npregress kernel") ///
+>     psub("In-sample RMSE = `rk'") gname(m_p2)
+
+. moto_panel, fitvar(fit_conn) ptitle("C. NNS connect, order(`ORD')") ///
+>     psub("In-sample RMSE = `rc'") gname(m_p3)
+
+. moto_panel, fitvar(fit_ols) ptitle("D. NNS OLS, order(`ORD')") ///
+>     psub("In-sample RMSE = `ro'") gname(m_p4)
+
+. graph combine m_p1 m_p2 m_p3 m_p4, cols(2) imargin(small) ///
+>     l1title("Acceleration (g)", size(small)) ///
+>     b1title("Time after impact (milliseconds)", size(small)) ///
+>     note("Gray dots: 133 accelerometer readings.  Dark line: fitted values.",
+>  size(vsmall)) ///
+>     graphregion(color(white)) xsize(7.5) ysize(6) name(moto_fits, replace)
+
+. graph export "manuscript/fig_moto_fits.pdf", replace
+file manuscript/fig_moto_fits.pdf saved as PDF format
+
+. graph export "manuscript/fig_moto_fits.png", replace width(2200)
+file manuscript/fig_moto_fits.png written in PNG format
+
+. 
+. // Segment diagnostic: the upper panel shows the fitted curve and knots.  The
+. // lower panel shows the slope assigned to each x range, its conditional 95%
+. // interval, and the number of observations in that range.  Thinly supported
+. // ranges are dashed so the display prompts investigation rather than turning
+. // every knot into a threshold claim.
+. estimates restore moto_ols
+(results moto_ols are active now)
+
+. local klist "`e(knots)'"
+
+. matrix S_moto = e(segments)
+
+. local tcrit = invttail(e(df_r), .025)
+
+. twoway ///
+>     (scatter accel time, mcolor("108 122 141%45") msymbol(Oh) msize(small)) /
+> //
+>     (line fit_ols time, sort lcolor("27 45 85") lwidth(medthick)), ///
+>     xline(`klist', lcolor("108 122 141") lpattern(shortdash) lwidth(vthin)) /
+> //
+>     ytitle("Acceleration (g)", size(small)) ///
+>     xtitle("Time after impact (milliseconds)", size(small)) ///
+>     ylabel(-150(50)100, labsize(small) angle(horizontal)) xlabel(0(20)60, lab
+> size(small)) ///
+>     legend(order(2 "NNS OLS fit, order(`ORD')") rows(1) size(small) position(
+> 5) ///
+>         region(lcolor(none))) ///
+>     graphregion(color(white)) xsize(7) ysize(3.8) name(moto_curve, replace) n
+> odraw
+
+. 
+. preserve
+
+. clear
+
+. svmat double S_moto, names(col)
+number of observations will be reset to 14
+Press any key to continue, or Break to abort
+Number of observations (_N) was 0, now 14.
+
+. gen double x_mid = (x_lo + x_hi) / 2
+
+. gen double ci_lo = slope - `tcrit' * se
+
+. gen double ci_hi = slope + `tcrit' * se
+
+. gen byte sparse = n < 5
+
+. gen byte label_slot = mod(_n, 4)
+
+. gen str8 n_label = "n=" + string(n, "%2.0f")
+
+. 
+. twoway ///
+>     (pcspike slope x_lo slope x_hi if !sparse, lcolor("27 45 85") lwidth(medt
+> hick)) ///
+>     (rcap ci_lo ci_hi x_mid if !sparse, lcolor("27 45 85") lwidth(vthin)) ///
+>     (pcspike slope x_lo slope x_hi if sparse, lcolor(gs7) lpattern(shortdash)
+>  lwidth(medthick)) ///
+>     (rcap ci_lo ci_hi x_mid if sparse, lcolor(gs7) lpattern(shortdash) lwidth
+> (vthin)) ///
+>     (scatter slope x_mid if label_slot == 0, msymbol(O) msize(vsmall) mcolor(
+> "27 45 85") ///
+>         mlabel(n_label) mlabsize(vsmall) mlabposition(12) mlabcolor(gs5)) ///
+>     (scatter slope x_mid if label_slot == 1, msymbol(O) msize(vsmall) mcolor(
+> "27 45 85") ///
+>         mlabel(n_label) mlabsize(vsmall) mlabposition(6) mlabcolor(gs5)) ///
+>     (scatter slope x_mid if label_slot == 2, msymbol(O) msize(vsmall) mcolor(
+> "27 45 85") ///
+>         mlabel(n_label) mlabsize(vsmall) mlabposition(11) mlabcolor(gs5)) ///
+>     (scatter slope x_mid if label_slot == 3, msymbol(O) msize(vsmall) mcolor(
+> "27 45 85") ///
+>         mlabel(n_label) mlabsize(vsmall) mlabposition(5) mlabcolor(gs5)), ///
+>     yline(0, lcolor(gs8) lpattern(dot)) ///
+>     ytitle("Slope (g per millisecond)", size(small)) ///
+>     xtitle("Time after impact (milliseconds)", size(small)) ///
+>     ylabel(-200(50)150, labsize(small) angle(horizontal)) ///
+>     xlabel(0(20)60, labsize(small)) ///
+>     legend(order(1 "Slope over range" 2 "95% conditional robust interval" ///
+>         3 "Range with n < 5") rows(1) size(vsmall) position(6) region(lcolor(
+> none))) ///
+>     note("Labels report observations in each x range.  Robust intervals condi
+> tion on the selected knots.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7) ysize(3.8) name(moto_slopes, replace) 
+> nodraw
+
+. restore
+
+. 
+. graph combine moto_curve moto_slopes, cols(1) imargin(small) ///
+>     note("Knots and large local slopes flag ranges for inspection; they are n
+> ot estimated thresholds.", ///
+>         size(vsmall)) ///
+>     graphregion(color(white)) xsize(7) ysize(7.2) name(moto_knots, replace)
+
+. graph export "manuscript/fig_moto_knots.pdf", replace
+file manuscript/fig_moto_knots.pdf saved as PDF format
+
+. graph export "manuscript/fig_moto_knots.png", replace width(2000)
+file manuscript/fig_moto_knots.png written in PNG format
+
+. 
+. // Diagnostics table
+. use "examples/moto_diag.dta", clear
+
+. format r2 rmse_obs %6.3f
+
+. list, noobs
+
+  +------------------------------------------------------+
+  |                    model      r2   rmse_obs   nknots |
+  |------------------------------------------------------|
+  |        Linear regression   0.088     45.977        0 |
+  |         npregress kernel   0.800     21.737        . |
+  |         npregress series   0.796     21.719        . |
+  |    NNS connect, order(3)   0.623     30.638       13 |
+  |        NNS OLS, order(3)   0.801     21.470       13 |
+  |------------------------------------------------------|
+  | NNS OLS, order(3) median   0.796     21.740       13 |
+  +------------------------------------------------------+
+
+. export delimited using "manuscript/table_moto_diag.csv", replace
+file manuscript/table_moto_diag.csv saved
+
+. 
+. // Featured slope table (for a manuscript log excerpt / reference)
+. di _n "=== per-segment slopes on the featured NNS OLS fit ==="
+
+=== per-segment slopes on the featured NNS OLS fit ===
+
+. webuse motorcycle, clear
+(Motorcycle data from Fan & Gijbels (1996))
+
+. nnsreg accel time, order(`ORD') method(ols) vce(robust) noplot slopes
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   accel
+Independent variable:  time
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        133
+R-squared:            0.8011
+Root MSE:             22.7935
+
+------------------------------------------------------------------------------
+             |               Robust
+       accel | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+        time |    .085672   .3010991     0.28   0.777    -.5105862    .6819301
+       knot1 |  -1.029052   .8138725    -1.26   0.209    -2.640741    .5826372
+       knot2 |   -21.8522   5.385398    -4.06   0.000    -32.51675   -11.18764
+       knot3 |  -8.253965   12.63875    -0.65   0.515    -33.28213     16.7742
+       knot4 |   27.46007   16.90239     1.62   0.107    -6.011262     60.9314
+       knot5 |  -7.574713   15.22496    -0.50   0.620    -37.72428    22.57485
+       knot6 |   24.07525   11.82694     2.04   0.044     .6546848    47.49581
+       knot7 |   12.72543   16.43581     0.77   0.440    -19.82194     45.2728
+       knot8 |   2.640839   34.58523     0.08   0.939    -65.84734    71.12902
+       knot9 |  -13.42931   26.86126    -0.50   0.618    -66.62192     39.7633
+      knot10 |  -30.69071   28.46886    -1.08   0.283     -87.0668    25.68538
+      knot11 |   13.11706   24.03104     0.55   0.586    -34.47093    60.70506
+      knot12 |  -21.78003   51.07618    -0.43   0.671    -122.9248    79.36471
+      knot13 |   26.01951     51.355     0.51   0.613    -75.67737    127.7164
+       _cons |  -1.669142   1.342582    -1.24   0.216    -4.327819    .9895355
+------------------------------------------------------------------------------
+
+Per-segment slopes (cumulative), conditional on the NNS knots
+-------------------------------------------------------------------------
+ segment                 x range       slope   std. err.       n
+-------------------------------------------------------------------------
+       1         2.4 to     7.32      0.0857      0.3011       8
+       2        7.32 to     14.5     -0.9434      0.5475      13
+       3        14.5 to     16.1    -22.7956      5.0115      17
+       4        16.1 to     17.7    -31.0495      8.9999      13
+       5        17.7 to     19.4     -3.5895      9.6596       5
+       6        19.4 to     21.7    -11.1642      7.1372       7
+       7        21.7 to       24     12.9111      6.3176       4
+       8          24 to     26.2     25.6365     11.6166      10
+       9        26.2 to     27.1     28.2773     24.1645       4
+      10        27.1 to     31.2     14.8480      6.0355      11
+      11        31.2 to     32.1    -15.8427     23.3977       3
+      12        32.1 to     45.7     -2.7256      1.1704      27
+      13        45.7 to     45.9    -24.5057     50.5187       0
+      14        45.9 to     57.6      1.5139      1.1096      11
+-------------------------------------------------------------------------
+Standard errors are conditional on the data-derived knot locations.
+note: 6 reported x range(s) contain fewer than minobs(8) observations; minobs()
+>  governs recursive partition groups, not the counts between adjacent knots.
+note: 1 reported x range(s) contain no estimation observations; their slopes de
+> scribe interpolation between knots.
+
+. 
+. // --------------------------------------------------------------------------
+> -
+. // Repeated k-fold cross-validation: held-out RMSE by method
+. // --------------------------------------------------------------------------
+> -
+. di _n "=== Repeated `KFOLD'-fold CV, `CVREPS' repeats ==="
+
+=== Repeated 5-fold CV, 20 repeats ===
+
+. webuse motorcycle, clear
+(Motorcycle data from Fan & Gijbels (1996))
+
+. // Fixed restricted-cubic-spline basis at full-sample percentile knots.  This
+. // comparator uses only the marginal distribution of time, but its basis is
+. // fixed before the folds rather than recomputed inside each training fold.
+. mkspline msp = time, cubic nknots(5)
+
+. 
+. tempname cv
+
+. postfile `cv' str24 method double rmse int rep using "examples/moto_cv.dta", 
+> replace
+
+. 
+. // The kernel estimator is scored at held-out time values through margins.
+. // The series estimator uses predict, tolerance(100), which permits scoring
+. // within the endpoint-bounded held-out set even when a training-fold spline
+. // basis has a narrower internal support.
+. local methods "linear mksp kernel series conn ols olsmed"
+
+. local npfail = 0
+
+. local seriesfail = 0
+
+. 
+. // The observations at the smallest and largest time are always kept in the
+. // training set (fold 0), so every held-out point is interior to the training
+. // range.  Thus each repeat scores 131 of the 133 observations.  Random folds
+. // operate at the observation level, so tied time values can appear in both
+. // training and validation data; the estimand is prediction for another
+. // reading at a partly familiar time, not prediction at an unseen time value.
+. quietly summarize time, meanonly
+
+. local tmin = r(min)
+
+. local tmax = r(max)
+
+. 
+. forvalues rep = 1/`CVREPS' {
+  2.     set seed `=`CVSEED' + `rep''
+  3.     quietly gen double u = runiform()
+  4.     quietly xtile fold = u, nq(`KFOLD')
+  5.     quietly replace fold = 0 if time == `tmin' | time == `tmax'
+  6.     // One OOS prediction column per method
+.     foreach m of local methods {
+  7.         quietly gen double p_`m' = .
+  8.     }
+  9.     forvalues k = 1/`KFOLD' {
+ 10.         // ----- arms that predict out-of-sample directly -----
+.         quietly regress accel time if fold != `k'
+ 11.         quietly predict double _tmp, xb
+ 12.         quietly replace p_linear = _tmp if fold == `k'
+ 13.         drop _tmp
+ 14. 
+.         quietly regress accel msp* if fold != `k'
+ 15.         quietly predict double _tmp, xb
+ 16.         quietly replace p_mksp = _tmp if fold == `k'
+ 17.         drop _tmp
+ 18. 
+.         capture quietly nnsreg accel time if fold != `k', order(`ORD') method
+> (connect) noplot
+ 19.         if _rc == 0 {
+ 20.             quietly predict double _tmp
+ 21.             quietly replace p_conn = _tmp if fold == `k'
+ 22.             drop _tmp
+ 23.         }
+ 24.         capture quietly nnsreg accel time if fold != `k', order(`ORD') met
+> hod(ols) noplot
+ 25.         if _rc == 0 {
+ 26.             quietly predict double _tmp
+ 27.             quietly replace p_ols = _tmp if fold == `k'
+ 28.             drop _tmp
+ 29.         }
+ 30.         capture quietly nnsreg accel time if fold != `k', order(`ORD') met
+> hod(ols) noise(median) noplot
+ 31.         if _rc == 0 {
+ 32.             quietly predict double _tmp
+ 33.             quietly replace p_olsmed = _tmp if fold == `k'
+ 34.             drop _tmp
+ 35.         }
+ 36. 
+.         // ----- npregress arms: held-out predictions via margins at() -----
+.         levelsof time if fold == `k', local(hv)
+ 37.         capture {
+ 38.             quietly npregress kernel accel time if fold != `k'
+ 39.             quietly margins, at(time=(`hv')) predict(mean)
+ 40.             matrix P = r(b)
+ 41.             local i = 0
+ 42.             foreach v of local hv {
+ 43.                 local ++i
+ 44.                 quietly replace p_kernel = P[1, `i'] if fold == `k' & abs(
+> time - `v') < 0.001
+ 45.             }
+ 46.         }
+ 47.         if _rc local ++npfail
+ 48. 
+.         capture {
+ 49.             quietly npregress series accel time if fold != `k'
+ 50.             quietly predict double _tmp_series, mean tolerance(100)
+ 51.             quietly replace p_series = _tmp_series if fold == `k'
+ 52.             drop _tmp_series
+ 53.         }
+ 54.         if _rc local ++seriesfail
+ 55.     }
+ 56.     // One held-out RMSE per method for this repeat (over all N rows)
+.     foreach m of local methods {
+ 57.         tempvar e2
+ 58.         quietly gen double `e2' = (accel - p_`m')^2
+ 59.         quietly summarize `e2', meanonly
+ 60.         post `cv' ("`m'") (sqrt(r(mean))) (`rep')
+ 61.         drop `e2' p_`m'
+ 62.     }
+ 63.     drop u fold
+ 64.     if mod(`rep', 5) == 0 di as text "  CV repeat `rep' of `CVREPS'"
+ 65. }
+2.599999904632568 3.200000047683716 3.599999904632568 4 8.800000190734863 13.19
+> 999980926514 13.60000038146973 15.39999961853027 15.80000019073486 17.6000003
+> 8146973 17.79999923706055 19.39999961853027 22 25 26.20000076293945 28.399999
+> 61853027 30.20000076293945 31 40 43 46.59999847412109 53.20000076293945 57.59
+> 999847412109
+6.599999904632568 7.800000190734863 8.199999809265137 10.19999980926514 14.6000
+> 0038146973 15.39999961853027 15.60000038146973 16.20000076293945 16.600000381
+> 46973 16.79999923706055 18.60000038146973 24.20000076293945 24.60000038146973
+>  27 28.60000038146973 36.20000076293945 38 39.20000076293945 41.5999984741210
+> 9 42.79999923706055 44 47.79999923706055 50.59999847412109 55
+2.400000095367432 6.199999809265137 8.800000190734863 10.60000038146973 14.6000
+> 0038146973 15.80000019073486 16.39999961853027 16.79999923706055 18.600000381
+> 46973 20.20000076293945 21.20000076293945 21.79999923706055 23.20000076293945
+>  24.20000076293945 25.39999961853027 25.60000038146973 26.39999961853027 27.2
+> 0000076293945 27.60000038146973 29.39999961853027 32.79999923706055 33.799999
+> 23706055 34.79999923706055 36.20000076293945 44.40000152587891 52
+6.800000190734863 14.60000038146973 14.80000019073486 15.39999961853027 15.6000
+> 0038146973 16.20000076293945 17.60000038146973 17.79999923706055 19.399999618
+> 53027 19.60000038146973 25.39999961853027 26 27.20000076293945 28.39999961853
+> 027 33.40000152587891 35.20000076293945 35.40000152587891 35.59999847412109 3
+> 9.40000152587891 40.40000152587891 42.79999923706055 45 48.79999923706055 55.
+> 40000152587891
+9.600000381469727 10 11 11.39999961853027 13.80000019073486 14.60000038146973 1
+> 6 16.39999961853027 16.79999923706055 19.20000076293945 20.39999961853027 21.
+> 39999961853027 23.39999961853027 24 27.20000076293945 28.20000076293945 31.20
+> 000076293945 32 34.40000152587891 35.20000076293945 38 41.59999847412109 42.4
+> 0000152587891 55
+2.599999904632568 3.599999904632568 13.60000038146973 14.60000038146973 16.2000
+> 0076293945 16.60000038146973 17.60000038146973 20.20000076293945 23.200000762
+> 93945 25 25.39999961853027 27.20000076293945 28.39999961853027 30.20000076293
+> 945 31 32 36.20000076293945 39.40000152587891 40 41.59999847412109 42.7999992
+> 3706055 44.40000152587891 48.79999923706055 53.20000076293945
+2.400000095367432 7.800000190734863 8.800000190734863 10 13.80000019073486 14.6
+> 0000038146973 14.80000019073486 15.39999961853027 15.60000038146973 16.200000
+> 76293945 16.39999961853027 17.60000038146973 19.39999961853027 24 28.20000076
+> 293945 29.39999961853027 31.20000076293945 32.79999923706055 35.2000007629394
+> 5 35.59999847412109 38 46.59999847412109 50.59999847412109 52 55.400001525878
+> 91
+6.599999904632568 6.800000190734863 9.600000381469727 10.60000038146973 11 15.6
+> 0000038146973 15.80000019073486 16 16.39999961853027 16.79999923706055 17.600
+> 00038146973 19.60000038146973 20.39999961853027 21.79999923706055 23.39999961
+> 853027 25.60000038146973 26 27.20000076293945 27.60000038146973 28.3999996185
+> 3027 28.60000038146973 35.40000152587891 35.59999847412109 55 57.599998474121
+> 09
+3.200000047683716 4 6.199999809265137 8.199999809265137 11.39999961853027 14.60
+> 000038146973 15.39999961853027 16 17.79999923706055 18.60000038146973 19.2000
+> 0076293945 21.20000076293945 24.20000076293945 24.60000038146973 26.399999618
+> 53027 27 32 33.40000152587891 33.79999923706055 35.20000076293945 40.40000152
+> 587891 42.40000152587891 43 45 47.79999923706055
+8.800000190734863 10.19999980926514 13.19999980926514 15.39999961853027 15.8000
+> 0019073486 16.20000076293945 16.79999923706055 17.60000038146973 17.799999237
+> 06055 18.60000038146973 19.39999961853027 21.39999961853027 22 25 26.20000076
+> 293945 27.20000076293945 34.40000152587891 34.79999923706055 36.2000007629394
+> 5 39.20000076293945 41.59999847412109 42.79999923706055 44 47.79999923706055
+2.599999904632568 9.600000381469727 11 14.80000019073486 16.20000076293945 16.3
+> 9999961853027 16.79999923706055 17.79999923706055 18.60000038146973 20.399999
+> 61853027 23.20000076293945 23.39999961853027 24.20000076293945 25 25.39999961
+> 853027 26 27 27.20000076293945 28.39999961853027 28.60000038146973 30.2000007
+> 6293945 32 39.40000152587891 47.79999923706055 55
+6.599999904632568 8.199999809265137 11.39999961853027 13.60000038146973 14.6000
+> 0038146973 15.39999961853027 16.39999961853027 17.60000038146973 19.399999618
+> 53027 19.60000038146973 21.79999923706055 24.20000076293945 27.20000076293945
+>  32.79999923706055 33.79999923706055 34.40000152587891 36.20000076293945 40 4
+> 1.59999847412109 42.79999923706055 44 44.40000152587891 55 57.59999847412109
+2.400000095367432 3.599999904632568 4 6.199999809265137 6.800000190734863 8.800
+> 000190734863 10 10.19999980926514 10.60000038146973 14.60000038146973 16 16.2
+> 0000076293945 17.60000038146973 19.20000076293945 19.39999961853027 20.200000
+> 76293945 24.60000038146973 26.20000076293945 26.39999961853027 28.39999961853
+> 027 33.40000152587891 35.40000152587891 38 53.20000076293945
+3.200000047683716 7.800000190734863 8.800000190734863 13.19999980926514 14.6000
+> 0038146973 15.60000038146973 15.80000019073486 16.60000038146973 16.799999237
+> 06055 17.60000038146973 17.79999923706055 18.60000038146973 26.20000076293945
+>  27.60000038146973 28.20000076293945 29.39999961853027 31.20000076293945 34.7
+> 9999923706055 35.59999847412109 38 42.40000152587891 43 45 48.79999923706055 
+> 50.59999847412109
+13.80000019073486 14.60000038146973 15.39999961853027 15.60000038146973 15.8000
+> 0019073486 21.20000076293945 21.39999961853027 22 24 25.39999961853027 25.600
+> 00038146973 27.20000076293945 31 32 35.20000076293945 36.20000076293945 39.20
+> 000076293945 40.40000152587891 41.59999847412109 42.79999923706055 46.5999984
+> 7412109 47.79999923706055 52 55.40000152587891
+2.400000095367432 8.199999809265137 10 11 13.60000038146973 15.60000038146973 1
+> 5.80000019073486 16.20000076293945 16.79999923706055 17.60000038146973 18.600
+> 00038146973 21.20000076293945 22 23.20000076293945 24.20000076293945 31.20000
+> 076293945 33.79999923706055 34.40000152587891 34.79999923706055 35.2000007629
+> 3945 38 42.40000152587891 48.79999923706055 50.59999847412109 55 55.400001525
+> 87891 57.59999847412109
+2.599999904632568 3.200000047683716 6.199999809265137 14.60000038146973 14.8000
+> 0019073486 15.39999961853027 16 16.60000038146973 16.79999923706055 17.600000
+> 38146973 17.79999923706055 20.39999961853027 23.39999961853027 25.39999961853
+> 027 26 27 28.39999961853027 28.60000038146973 35.20000076293945 35.5999984741
+> 2109 38 39.40000152587891 40 40.40000152587891 44 53.20000076293945
+7.800000190734863 8.800000190734863 14.60000038146973 15.80000019073486 16.2000
+> 0076293945 19.20000076293945 19.39999961853027 19.60000038146973 21.399999618
+> 53027 21.79999923706055 24.60000038146973 25.39999961853027 25.60000038146973
+>  26.20000076293945 27.20000076293945 27.60000038146973 30.20000076293945 31 3
+> 2 35.40000152587891 41.59999847412109 43 44.40000152587891 47.79999923706055
+3.599999904632568 6.599999904632568 8.800000190734863 10.19999980926514 10.6000
+> 0038146973 11.39999961853027 14.60000038146973 15.39999961853027 16.399999618
+> 53027 16.79999923706055 17.60000038146973 17.79999923706055 18.60000038146973
+>  25 27.20000076293945 28.20000076293945 28.39999961853027 29.39999961853027 3
+> 2.79999923706055 35.59999847412109 39.20000076293945 41.59999847412109 42.799
+> 99923706055 46.59999847412109 47.79999923706055 52
+4 6.800000190734863 9.600000381469727 13.19999980926514 13.80000019073486 14.60
+> 000038146973 15.39999961853027 15.60000038146973 16 16.20000076293945 16.3999
+> 9961853027 17.60000038146973 20.20000076293945 24 24.20000076293945 25 26.200
+> 00076293945 26.39999961853027 27.20000076293945 32 33.40000152587891 36.20000
+> 076293945 45 55
+2.599999904632568 3.599999904632568 8.800000190734863 9.600000381469727 13.8000
+> 0019073486 14.60000038146973 15.39999961853027 15.60000038146973 15.800000190
+> 73486 16 16.20000076293945 16.60000038146973 16.79999923706055 20.20000076293
+> 945 21.39999961853027 24.20000076293945 25.60000038146973 26.20000076293945 2
+> 7.20000076293945 28.39999961853027 32 42.79999923706055 46.59999847412109 47.
+> 79999923706055 53.20000076293945
+4 6.800000190734863 10 13.19999980926514 14.60000038146973 16 16.39999961853027
+>  17.60000038146973 19.39999961853027 20.39999961853027 23.20000076293945 24.2
+> 0000076293945 27.60000038146973 28.20000076293945 29.39999961853027 30.200000
+> 76293945 31.20000076293945 32 33.40000152587891 35.59999847412109 38 39.20000
+> 076293945 43 50.59999847412109 57.59999847412109
+2.400000095367432 6.199999809265137 6.599999904632568 10.19999980926514 10.6000
+> 0038146973 14.60000038146973 15.39999961853027 15.80000019073486 16.200000762
+> 93945 17.60000038146973 17.79999923706055 18.60000038146973 19.60000038146973
+>  24 26.20000076293945 27.20000076293945 35.59999847412109 36.20000076293945 3
+> 9.40000152587891 40.40000152587891 41.59999847412109 44.40000152587891 45 55
+8.199999809265137 14.60000038146973 14.80000019073486 15.39999961853027 15.6000
+> 0038146973 19.20000076293945 21.20000076293945 24.60000038146973 25 25.399999
+> 61853027 26 27 28.39999961853027 28.60000038146973 31 32.79999923706055 33.79
+> 999923706055 34.40000152587891 35.40000152587891 40 42.40000152587891 42.7999
+> 9923706055 44 47.79999923706055 48.79999923706055 55.40000152587891
+3.200000047683716 7.800000190734863 8.800000190734863 11 11.39999961853027 13.6
+> 0000038146973 15.39999961853027 16.39999961853027 16.79999923706055 17.600000
+> 38146973 17.79999923706055 19.39999961853027 21.79999923706055 22 23.39999961
+> 853027 25 26.39999961853027 34.79999923706055 35.20000076293945 36.2000007629
+> 3945 38 41.59999847412109 52 55
+  CV repeat 5 of 20
+6.599999904632568 8.800000190734863 13.60000038146973 14.60000038146973 14.8000
+> 0019073486 16.20000076293945 16.39999961853027 17.60000038146973 17.799999237
+> 06055 20.20000076293945 25.39999961853027 26.39999961853027 27.20000076293945
+>  28.20000076293945 28.39999961853027 31 32.79999923706055 34.40000152587891 3
+> 5.59999847412109 36.20000076293945 41.59999847412109 42.79999923706055 55.400
+> 00152587891 57.59999847412109
+3.599999904632568 8.199999809265137 14.60000038146973 15.39999961853027 15.6000
+> 0038146973 16 16.20000076293945 16.79999923706055 17.60000038146973 18.600000
+> 38146973 19.20000076293945 19.39999961853027 19.60000038146973 21.39999961853
+> 027 22 23.39999961853027 24 26 29.39999961853027 39.20000076293945 39.4000015
+> 2587891 41.59999847412109 44.40000152587891 45
+2.599999904632568 3.200000047683716 4 6.800000190734863 9.600000381469727 10 10
+> .19999980926514 15.39999961853027 16.39999961853027 16.60000038146973 18.6000
+> 0038146973 23.20000076293945 24.20000076293945 25 27.60000038146973 32 33.400
+> 00152587891 33.79999923706055 38 40 43 44 46.59999847412109 47.79999923706055
+>  55
+11.39999961853027 13.19999980926514 14.60000038146973 15.39999961853027 15.8000
+> 0019073486 16.20000076293945 16.79999923706055 19.39999961853027 21.200000762
+> 93945 21.79999923706055 24.20000076293945 25 27.20000076293945 28.60000038146
+> 973 31.20000076293945 32 35.20000076293945 35.40000152587891 38 40.4000015258
+> 7891 42.79999923706055 47.79999923706055 48.79999923706055 52 53.200000762939
+> 45
+2.400000095367432 6.199999809265137 7.800000190734863 8.800000190734863 10.6000
+> 0038146973 11 13.80000019073486 14.60000038146973 15.39999961853027 15.600000
+> 38146973 15.80000019073486 17.60000038146973 17.79999923706055 20.39999961853
+> 027 24.60000038146973 25.39999961853027 25.60000038146973 26.20000076293945 2
+> 7 30.20000076293945 34.79999923706055 35.20000076293945 35.59999847412109 42.
+> 40000152587891 50.59999847412109
+4 6.199999809265137 6.800000190734863 7.800000190734863 14.60000038146973 15.60
+> 000038146973 16.79999923706055 17.60000038146973 19.39999961853027 20.2000007
+> 6293945 22 23.20000076293945 24.20000076293945 26 26.20000076293945 26.399999
+> 61853027 27.20000076293945 28.39999961853027 28.60000038146973 30.20000076293
+> 945 35.40000152587891 43 44.40000152587891 47.79999923706055 53.2000007629394
+> 5
+2.400000095367432 6.599999904632568 8.199999809265137 11.39999961853027 14.6000
+> 0038146973 15.80000019073486 16.20000076293945 16.79999923706055 17.799999237
+> 06055 19.60000038146973 25 25.39999961853027 25.60000038146973 28.20000076293
+> 945 28.39999961853027 29.39999961853027 31.20000076293945 34.40000152587891 3
+> 5.20000076293945 38 39.20000076293945 39.40000152587891 40 41.59999847412109 
+> 55
+10 10.19999980926514 10.60000038146973 11 13.19999980926514 16 16.3999996185302
+> 7 16.60000038146973 17.60000038146973 18.60000038146973 21.20000076293945 23.
+> 39999961853027 24.60000038146973 27.60000038146973 32 32.79999923706055 34.79
+> 999923706055 35.59999847412109 38 42.40000152587891 42.79999923706055 45 48.7
+> 9999923706055 55 57.59999847412109
+2.599999904632568 3.599999904632568 9.600000381469727 14.60000038146973 15.3999
+> 9961853027 15.60000038146973 16 16.20000076293945 16.79999923706055 18.600000
+> 38146973 19.39999961853027 21.39999961853027 21.79999923706055 24.20000076293
+> 945 25 33.79999923706055 35.20000076293945 36.20000076293945 40.4000015258789
+> 1 41.59999847412109 42.79999923706055 46.59999847412109 55.40000152587891
+3.200000047683716 8.800000190734863 13.60000038146973 13.80000019073486 14.6000
+> 0038146973 14.80000019073486 15.39999961853027 15.80000019073486 17.600000381
+> 46973 17.79999923706055 19.20000076293945 20.39999961853027 24 26.20000076293
+> 945 27 27.20000076293945 31 32 33.40000152587891 35.59999847412109 44 47.7999
+> 9923706055 50.59999847412109 52
+2.599999904632568 6.599999904632568 13.19999980926514 13.60000038146973 14.6000
+> 0038146973 15.39999961853027 16 16.39999961853027 16.79999923706055 17.600000
+> 38146973 17.79999923706055 19.39999961853027 20.20000076293945 24.20000076293
+> 945 25.39999961853027 25.60000038146973 30.20000076293945 31.20000076293945 3
+> 5.20000076293945 35.59999847412109 38 39.40000152587891 41.59999847412109 55 
+> 57.59999847412109
+7.800000190734863 10 11 11.39999961853027 14.60000038146973 14.80000019073486 1
+> 5.39999961853027 15.60000038146973 16.20000076293945 17.60000038146973 18.600
+> 00038146973 19.20000076293945 21.20000076293945 22 24.60000038146973 25 29.39
+> 999961853027 33.40000152587891 35.59999847412109 44.40000152587891 48.7999992
+> 3706055 50.59999847412109 52
+2.400000095367432 3.200000047683716 6.800000190734863 8.199999809265137 14.6000
+> 0038146973 19.60000038146973 23.20000076293945 23.39999961853027 24 24.200000
+> 76293945 25 26 26.20000076293945 26.39999961853027 27.20000076293945 28.20000
+> 076293945 28.60000038146973 32 34.79999923706055 35.40000152587891 36.2000007
+> 6293945 38 42.40000152587891 43 44
+3.599999904632568 8.800000190734863 9.600000381469727 10.19999980926514 10.6000
+> 0038146973 13.80000019073486 14.60000038146973 15.60000038146973 15.800000190
+> 73486 16 17.60000038146973 18.60000038146973 21.39999961853027 21.79999923706
+> 055 26.20000076293945 31 32 32.79999923706055 33.79999923706055 34.4000015258
+> 7891 36.20000076293945 39.20000076293945 42.79999923706055 45 53.200000762939
+> 45 55
+4 6.199999809265137 8.800000190734863 14.60000038146973 15.80000019073486 16.20
+> 000076293945 16.39999961853027 16.60000038146973 16.79999923706055 19.3999996
+> 1853027 20.39999961853027 27 27.20000076293945 27.60000038146973 28.399999618
+> 53027 35.20000076293945 40 40.40000152587891 41.59999847412109 46.59999847412
+> 109 47.79999923706055 55.40000152587891
+4 6.800000190734863 8.800000190734863 11 14.60000038146973 15.60000038146973 17
+> .60000038146973 19.39999961853027 21.39999961853027 22 24.20000076293945 24.6
+> 0000038146973 25.39999961853027 25.60000038146973 27 27.20000076293945 28.399
+> 99961853027 31 32.79999923706055 34.79999923706055 42.40000152587891 42.79999
+> 923706055 53.20000076293945 55
+3.599999904632568 8.800000190734863 10.19999980926514 11.39999961853027 13.8000
+> 0019073486 14.60000038146973 14.80000019073486 16.20000076293945 16.799999237
+> 06055 17.60000038146973 18.60000038146973 19.20000076293945 21.79999923706055
+>  26 26.39999961853027 28.20000076293945 32 33.79999923706055 35.2000007629394
+> 5 38 39.40000152587891 46.59999847412109 52
+6.199999809265137 7.800000190734863 10 13.60000038146973 14.60000038146973 15.3
+> 9999961853027 16 16.20000076293945 16.39999961853027 16.60000038146973 17.799
+> 99923706055 21.20000076293945 23.39999961853027 28.39999961853027 31.20000076
+> 293945 33.40000152587891 35.40000152587891 35.59999847412109 40 41.5999984741
+> 2109 42.79999923706055 44 48.79999923706055 55.40000152587891
+2.599999904632568 8.199999809265137 9.600000381469727 15.39999961853027 15.6000
+> 0038146973 15.80000019073486 16 16.20000076293945 16.79999923706055 17.600000
+> 38146973 19.39999961853027 19.60000038146973 20.20000076293945 24.20000076293
+> 945 25 25.39999961853027 26.20000076293945 27.20000076293945 27.6000003814697
+> 3 29.39999961853027 36.20000076293945 39.20000076293945 40.40000152587891 45 
+> 57.59999847412109
+2.400000095367432 3.200000047683716 6.599999904632568 10.60000038146973 13.1999
+> 9980926514 14.60000038146973 16.39999961853027 17.79999923706055 18.600000381
+> 46973 20.39999961853027 23.20000076293945 24 25 26.20000076293945 28.60000038
+> 146973 30.20000076293945 34.40000152587891 35.20000076293945 35.5999984741210
+> 9 36.20000076293945 43 44.40000152587891 47.79999923706055 50.59999847412109 
+> 55
+2.400000095367432 2.599999904632568 4 6.599999904632568 10.60000038146973 13.60
+> 000038146973 13.80000019073486 14.60000038146973 15.39999961853027 16.2000007
+> 6293945 16.39999961853027 16.79999923706055 17.60000038146973 18.600000381469
+> 73 19.60000038146973 23.20000076293945 24.20000076293945 24.60000038146973 28
+> .39999961853027 28.60000038146973 34.40000152587891 34.79999923706055 35.2000
+> 0076293945 35.59999847412109 39.40000152587891 40.40000152587891
+3.599999904632568 6.199999809265137 6.800000190734863 10.19999980926514 14.6000
+> 0038146973 15.39999961853027 15.60000038146973 16 16.79999923706055 17.600000
+> 38146973 19.20000076293945 21.39999961853027 24 26 27.60000038146973 28.39999
+> 961853027 29.39999961853027 30.20000076293945 32 33.40000152587891 36.2000007
+> 6293945 38 42.79999923706055 43 45 52 55.40000152587891
+7.800000190734863 8.199999809265137 8.800000190734863 9.600000381469727 11.3999
+> 9961853027 13.19999980926514 15.39999961853027 15.80000019073486 16.799999237
+> 06055 17.60000038146973 17.79999923706055 21.20000076293945 21.79999923706055
+>  24.20000076293945 25 25.39999961853027 26.20000076293945 32 33.7999992370605
+> 5 42.40000152587891 42.79999923706055 44 44.40000152587891 50.59999847412109 
+> 55
+10 14.60000038146973 16 16.20000076293945 16.60000038146973 17.79999923706055 1
+> 8.60000038146973 19.39999961853027 20.39999961853027 23.39999961853027 25 25.
+> 39999961853027 25.60000038146973 27 27.20000076293945 31 32.79999923706055 35
+> .40000152587891 36.20000076293945 39.20000076293945 40 41.59999847412109 46.5
+> 9999847412109 47.79999923706055 57.59999847412109
+3.200000047683716 8.800000190734863 11 14.60000038146973 14.80000019073486 15.3
+> 9999961853027 15.60000038146973 15.80000019073486 17.60000038146973 19.399999
+> 61853027 20.20000076293945 22 26.39999961853027 27.20000076293945 28.20000076
+> 293945 31.20000076293945 35.20000076293945 35.59999847412109 38 41.5999984741
+> 2109 47.79999923706055 48.79999923706055 53.20000076293945 55
+  CV repeat 10 of 20
+2.599999904632568 3.599999904632568 11 14.60000038146973 15.80000019073486 16 1
+> 6.79999923706055 17.60000038146973 17.79999923706055 19.39999961853027 19.600
+> 00038146973 24.20000076293945 25 28.39999961853027 30.20000076293945 32.79999
+> 923706055 34.79999923706055 35.20000076293945 35.59999847412109 36.2000007629
+> 3945 39.20000076293945 46.59999847412109 47.79999923706055 48.79999923706055 
+> 55 57.59999847412109
+2.400000095367432 9.600000381469727 10 11.39999961853027 14.60000038146973 14.8
+> 0000019073486 15.39999961853027 15.60000038146973 16.60000038146973 16.799999
+> 23706055 17.60000038146973 26.20000076293945 27.20000076293945 28.60000038146
+> 973 29.39999961853027 38 40 40.40000152587891 41.59999847412109 42.7999992370
+> 6055 44 47.79999923706055 50.59999847412109
+4 7.800000190734863 10.19999980926514 10.60000038146973 15.80000019073486 16.20
+> 000076293945 16.39999961853027 19.39999961853027 21.39999961853027 22 23.2000
+> 0076293945 23.39999961853027 24.20000076293945 28.39999961853027 32 33.400001
+> 52587891 33.79999923706055 38 42.40000152587891 43 44.40000152587891 53.20000
+> 076293945 55 55.40000152587891
+3.200000047683716 6.199999809265137 8.800000190734863 13.80000019073486 14.6000
+> 0038146973 15.39999961853027 16.20000076293945 17.60000038146973 18.600000381
+> 46973 19.20000076293945 20.20000076293945 20.39999961853027 21.79999923706055
+>  25.39999961853027 27.60000038146973 28.20000076293945 31.20000076293945 35.2
+> 0000076293945 35.40000152587891 35.59999847412109 39.40000152587891 41.599998
+> 47412109
+6.599999904632568 6.800000190734863 8.199999809265137 13.19999980926514 13.6000
+> 0038146973 14.60000038146973 15.39999961853027 16 16.79999923706055 17.799999
+> 23706055 21.20000076293945 24 24.60000038146973 25.39999961853027 25.60000038
+> 146973 26 26.20000076293945 26.39999961853027 27 31 34.40000152587891 36.2000
+> 0076293945 42.79999923706055 45 52
+2.400000095367432 4 6.199999809265137 7.800000190734863 10 10.60000038146973 15
+> .39999961853027 15.60000038146973 16 16.20000076293945 20.20000076293945 23.2
+> 0000076293945 24.20000076293945 24.60000038146973 25 27 28.39999961853027 29.
+> 39999961853027 31 33.40000152587891 35.20000076293945 35.40000152587891 35.59
+> 999847412109 38 41.59999847412109 55
+8.800000190734863 10.19999980926514 13.19999980926514 13.80000019073486 15.8000
+> 0019073486 16 16.20000076293945 16.79999923706055 17.79999923706055 18.600000
+> 38146973 20.39999961853027 21.39999961853027 24.20000076293945 25.60000038146
+> 973 27.20000076293945 28.60000038146973 32 34.79999923706055 39.4000015258789
+> 1 41.59999847412109 42.40000152587891 44.40000152587891 46.59999847412109 48.
+> 79999923706055 50.59999847412109 52 55.40000152587891
+2.599999904632568 3.200000047683716 11.39999961853027 14.60000038146973 14.8000
+> 0019073486 16.20000076293945 16.79999923706055 17.60000038146973 17.799999237
+> 06055 19.39999961853027 21.79999923706055 23.39999961853027 25.39999961853027
+>  30.20000076293945 31.20000076293945 32 33.79999923706055 35.20000076293945 3
+> 6.20000076293945 39.20000076293945 47.79999923706055 57.59999847412109
+3.599999904632568 6.599999904632568 9.600000381469727 11 13.60000038146973 14.6
+> 0000038146973 15.39999961853027 15.60000038146973 16.39999961853027 17.600000
+> 38146973 19.20000076293945 19.39999961853027 19.60000038146973 24 25 25.39999
+> 961853027 27.20000076293945 28.20000076293945 34.40000152587891 36.2000007629
+> 3945 38 40 40.40000152587891 44
+6.800000190734863 8.199999809265137 8.800000190734863 15.39999961853027 15.8000
+> 0019073486 16.39999961853027 16.60000038146973 16.79999923706055 18.600000381
+> 46973 21.20000076293945 22 26 26.20000076293945 26.39999961853027 27.20000076
+> 293945 27.60000038146973 28.39999961853027 32.79999923706055 35.5999984741210
+> 9 42.79999923706055 43 45 47.79999923706055 53.20000076293945
+9.600000381469727 11.39999961853027 14.60000038146973 15.39999961853027 15.6000
+> 0038146973 16.39999961853027 17.60000038146973 19.20000076293945 19.399999618
+> 53027 20.39999961853027 21.20000076293945 23.39999961853027 24 24.20000076293
+> 945 25.39999961853027 27 27.60000038146973 38 40 42.79999923706055 43 45 47.7
+> 9999923706055 48.79999923706055 53.20000076293945
+2.599999904632568 3.200000047683716 10.19999980926514 14.60000038146973 14.8000
+> 0019073486 15.80000019073486 16.20000076293945 16.60000038146973 16.799999237
+> 06055 21.79999923706055 25 27.20000076293945 28.20000076293945 28.39999961853
+> 027 31.20000076293945 32 34.79999923706055 35.59999847412109 40.4000015258789
+> 1 41.59999847412109 42.40000152587891 44.40000152587891 52 55.40000152587891 
+> 57.59999847412109
+3.599999904632568 7.800000190734863 8.199999809265137 8.800000190734863 13.1999
+> 9980926514 16 16.20000076293945 16.79999923706055 17.60000038146973 17.799999
+> 23706055 18.60000038146973 19.60000038146973 20.20000076293945 24.20000076293
+> 945 26 26.20000076293945 27.20000076293945 28.60000038146973 29.3999996185302
+> 7 30.20000076293945 31 32.79999923706055 33.79999923706055 55
+2.400000095367432 6.199999809265137 6.599999904632568 14.60000038146973 15.3999
+> 9961853027 15.60000038146973 15.80000019073486 16 17.60000038146973 23.200000
+> 76293945 25 33.40000152587891 34.40000152587891 35.20000076293945 35.59999847
+> 412109 36.20000076293945 39.40000152587891 41.59999847412109 42.7999992370605
+> 5 44 46.59999847412109 47.79999923706055 50.59999847412109
+4 6.800000190734863 8.800000190734863 10 10.60000038146973 11 13.60000038146973
+>  13.80000019073486 14.60000038146973 15.39999961853027 16.39999961853027 16.7
+> 9999923706055 19.39999961853027 21.39999961853027 22 24.60000038146973 25.399
+> 99961853027 25.60000038146973 26.20000076293945 26.39999961853027 27.20000076
+> 293945 28.39999961853027 35.20000076293945 35.40000152587891 39.2000007629394
+> 5 55
+2.599999904632568 6.199999809265137 8.800000190734863 10.19999980926514 13.1999
+> 9980926514 14.60000038146973 15.39999961853027 15.60000038146973 16.799999237
+> 06055 17.60000038146973 20.39999961853027 25 25.39999961853027 26.20000076293
+> 945 27 27.60000038146973 32 35.40000152587891 39.40000152587891 40 41.5999984
+> 7412109 46.59999847412109 47.79999923706055 50.59999847412109 52 57.599998474
+> 12109
+3.200000047683716 3.599999904632568 4 11.39999961853027 14.60000038146973 15.80
+> 000019073486 17.60000038146973 25.60000038146973 27.20000076293945 28.6000003
+> 8146973 29.39999961853027 31 31.20000076293945 32.79999923706055 34.400001525
+> 87891 34.79999923706055 35.59999847412109 36.20000076293945 38 39.20000076293
+> 945 41.59999847412109 42.40000152587891 42.79999923706055 43 47.7999992370605
+> 5 55
+2.400000095367432 6.800000190734863 10 10.60000038146973 14.60000038146973 15.3
+> 9999961853027 16 16.20000076293945 16.39999961853027 16.79999923706055 17.799
+> 99923706055 21.39999961853027 23.39999961853027 24.20000076293945 25.39999961
+> 853027 26.20000076293945 26.39999961853027 27.20000076293945 28.3999996185302
+> 7 30.20000076293945 35.20000076293945 38 44 45 53.20000076293945
+6.599999904632568 7.800000190734863 8.199999809265137 9.600000381469727 13.6000
+> 0038146973 14.60000038146973 15.39999961853027 16 16.20000076293945 16.600000
+> 38146973 16.79999923706055 18.60000038146973 19.20000076293945 20.20000076293
+> 945 21.79999923706055 24.60000038146973 26 28.20000076293945 28.3999996185302
+> 7 32 33.40000152587891 33.79999923706055 35.20000076293945 42.79999923706055 
+> 55 55.40000152587891
+8.800000190734863 11 13.80000019073486 14.80000019073486 15.39999961853027 15.6
+> 0000038146973 15.80000019073486 16.39999961853027 17.60000038146973 17.799999
+> 23706055 18.60000038146973 19.39999961853027 19.60000038146973 21.20000076293
+> 945 22 23.20000076293945 24 24.20000076293945 25 27.20000076293945 35.5999984
+> 7412109 36.20000076293945 40.40000152587891 44.40000152587891 48.799999237060
+> 55
+6.599999904632568 7.800000190734863 8.199999809265137 13.60000038146973 14.6000
+> 0038146973 14.80000019073486 15.60000038146973 15.80000019073486 16.200000762
+> 93945 17.60000038146973 19.20000076293945 21.20000076293945 21.39999961853027
+>  23.39999961853027 26 27 28.39999961853027 32 34.79999923706055 35.5999984741
+> 2109 38 42.40000152587891 42.79999923706055 43 50.59999847412109 53.200000762
+> 93945 55
+2.599999904632568 3.599999904632568 9.600000381469727 13.19999980926514 13.8000
+> 0019073486 14.60000038146973 16.20000076293945 16.39999961853027 16.799999237
+> 06055 18.60000038146973 20.39999961853027 22 25 26.20000076293945 26.39999961
+> 853027 31 35.59999847412109 36.20000076293945 45 46.59999847412109 47.7999992
+> 3706055 55.40000152587891 57.59999847412109
+3.200000047683716 4 6.800000190734863 8.800000190734863 14.60000038146973 15.39
+> 999961853027 15.80000019073486 16 16.79999923706055 17.60000038146973 18.6000
+> 0038146973 23.20000076293945 24.60000038146973 25.60000038146973 27.200000762
+> 93945 28.39999961853027 31.20000076293945 35.40000152587891 40.40000152587891
+>  41.59999847412109 42.79999923706055 44 55
+2.400000095367432 6.199999809265137 10.19999980926514 10.60000038146973 15.3999
+> 9961853027 15.60000038146973 16 16.79999923706055 17.60000038146973 17.799999
+> 23706055 19.39999961853027 19.60000038146973 20.20000076293945 24.20000076293
+> 945 25 28.60000038146973 29.39999961853027 30.20000076293945 33.4000015258789
+> 1 33.79999923706055 34.40000152587891 35.20000076293945 36.20000076293945 48.
+> 79999923706055 52
+10 11 11.39999961853027 14.60000038146973 15.39999961853027 16.60000038146973 1
+> 7.60000038146973 19.39999961853027 21.79999923706055 24 24.20000076293945 25.
+> 39999961853027 27.20000076293945 27.60000038146973 28.20000076293945 32 32.79
+> 999923706055 38 39.20000076293945 39.40000152587891 40 41.59999847412109 44.4
+> 0000152587891 47.79999923706055
+  CV repeat 15 of 20
+10.60000038146973 14.60000038146973 14.80000019073486 15.60000038146973 16.2000
+> 0076293945 16.39999961853027 16.60000038146973 19.39999961853027 19.600000381
+> 46973 21.39999961853027 22 24.60000038146973 27 28.39999961853027 30.20000076
+> 293945 32 33.40000152587891 33.79999923706055 35.20000076293945 35.5999984741
+> 2109 39.40000152587891 42.79999923706055 44.40000152587891 47.79999923706055 
+> 53.20000076293945
+8.199999809265137 8.800000190734863 10 10.19999980926514 14.60000038146973 15.3
+> 9999961853027 15.60000038146973 16.39999961853027 17.60000038146973 17.799999
+> 23706055 19.39999961853027 23.39999961853027 25 25.60000038146973 26 27.60000
+> 038146973 28.39999961853027 31 32.79999923706055 34.79999923706055 35.2000007
+> 6293945 35.59999847412109 45 46.59999847412109 55
+2.400000095367432 11 11.39999961853027 13.19999980926514 13.80000019073486 14.6
+> 0000038146973 15.39999961853027 15.80000019073486 16.79999923706055 17.600000
+> 38146973 20.39999961853027 21.79999923706055 24.20000076293945 25 26.20000076
+> 293945 31.20000076293945 34.40000152587891 35.40000152587891 36.2000007629394
+> 5 38 40 40.40000152587891 41.59999847412109 42.40000152587891 47.799999237060
+> 55
+4 6.800000190734863 9.600000381469727 13.60000038146973 14.60000038146973 16 16
+> .20000076293945 17.60000038146973 17.79999923706055 18.60000038146973 19.2000
+> 0076293945 21.20000076293945 23.20000076293945 24 24.20000076293945 25.399999
+> 61853027 26.39999961853027 28.20000076293945 32 36.20000076293945 39.20000076
+> 293945 41.59999847412109 44 50.59999847412109 52
+2.599999904632568 3.200000047683716 3.599999904632568 6.199999809265137 6.59999
+> 9904632568 7.800000190734863 8.800000190734863 15.80000019073486 16 16.200000
+> 76293945 16.79999923706055 20.20000076293945 25.39999961853027 26.20000076293
+> 945 27.20000076293945 28.60000038146973 29.39999961853027 38 43 48.7999992370
+> 6055 55 55.40000152587891 57.59999847412109
+2.400000095367432 2.599999904632568 3.200000047683716 3.599999904632568 11 13.8
+> 0000019073486 14.80000019073486 15.60000038146973 17.79999923706055 19.200000
+> 76293945 19.60000038146973 20.39999961853027 22 24.20000076293945 25 25.60000
+> 038146973 26.20000076293945 27 27.20000076293945 33.40000152587891 35.4000015
+> 2587891 35.59999847412109 42.79999923706055 44 44.40000152587891 45 48.799999
+> 23706055
+6.800000190734863 7.800000190734863 9.600000381469727 10 10.19999980926514 11.3
+> 9999961853027 15.39999961853027 15.60000038146973 16 16.20000076293945 16.399
+> 99961853027 17.60000038146973 18.60000038146973 20.20000076293945 21.20000076
+> 293945 24 26.20000076293945 28.39999961853027 32 36.20000076293945 40 40.4000
+> 0152587891 41.59999847412109 55
+8.199999809265137 8.800000190734863 13.60000038146973 14.60000038146973 15.3999
+> 9961853027 15.80000019073486 16.20000076293945 16.39999961853027 16.799999237
+> 06055 17.60000038146973 18.60000038146973 19.39999961853027 27.20000076293945
+>  28.20000076293945 32.79999923706055 33.79999923706055 34.79999923706055 36.2
+> 0000076293945 38 39.20000076293945 43 53.20000076293945 55.40000152587891
+4 6.199999809265137 6.599999904632568 8.800000190734863 13.19999980926514 14.60
+> 000038146973 15.39999961853027 16.60000038146973 23.20000076293945 24.2000007
+> 6293945 24.60000038146973 25.39999961853027 27.20000076293945 27.600000381469
+> 73 28.60000038146973 31 34.40000152587891 35.20000076293945 35.59999847412109
+>  39.40000152587891 42.40000152587891 46.59999847412109 47.79999923706055 57.5
+> 9999847412109
+10.60000038146973 14.60000038146973 15.39999961853027 15.80000019073486 16 16.7
+> 9999923706055 17.60000038146973 17.79999923706055 19.39999961853027 21.399999
+> 61853027 21.79999923706055 23.39999961853027 25 26 26.39999961853027 28.39999
+> 961853027 29.39999961853027 30.20000076293945 31.20000076293945 41.5999984741
+> 2109 42.79999923706055 47.79999923706055 50.59999847412109 52
+2.599999904632568 8.199999809265137 8.800000190734863 10 13.60000038146973 13.8
+> 0000019073486 14.60000038146973 14.80000019073486 15.39999961853027 16.200000
+> 76293945 16.79999923706055 17.60000038146973 22 25 26 27.20000076293945 28.39
+> 999961853027 28.60000038146973 31 41.59999847412109 42.79999923706055 44.4000
+> 0152587891 47.79999923706055 52
+3.200000047683716 4 6.800000190734863 11.39999961853027 14.60000038146973 15.39
+> 999961853027 15.60000038146973 16 16.39999961853027 17.79999923706055 19.2000
+> 0076293945 19.39999961853027 19.60000038146973 21.20000076293945 23.399999618
+> 53027 24.60000038146973 26.20000076293945 28.20000076293945 31.20000076293945
+>  32 35.40000152587891 39.20000076293945 39.40000152587891 40.40000152587891 4
+> 4
+2.400000095367432 9.600000381469727 10.60000038146973 14.60000038146973 15.6000
+> 0038146973 16.20000076293945 16.60000038146973 17.60000038146973 19.399999618
+> 53027 20.20000076293945 21.39999961853027 23.20000076293945 24 24.20000076293
+> 945 26.20000076293945 27.60000038146973 30.20000076293945 32 33.4000015258789
+> 1 34.79999923706055 38 40 45 46.59999847412109 53.20000076293945 55
+3.599999904632568 6.199999809265137 6.599999904632568 7.800000190734863 8.80000
+> 0190734863 11 16.79999923706055 17.60000038146973 18.60000038146973 21.799999
+> 23706055 25.39999961853027 25.60000038146973 27 28.39999961853027 34.40000152
+> 587891 35.20000076293945 35.59999847412109 36.20000076293945 38 42.7999992370
+> 6055 47.79999923706055 48.79999923706055 55 57.59999847412109
+10.19999980926514 13.19999980926514 14.60000038146973 15.80000019073486 16.3999
+> 9961853027 16.79999923706055 17.79999923706055 18.60000038146973 20.399999618
+> 53027 24.20000076293945 25.39999961853027 26.39999961853027 27.20000076293945
+>  29.39999961853027 32.79999923706055 33.79999923706055 35.59999847412109 41.5
+> 9999847412109 42.40000152587891 43 50.59999847412109 55.40000152587891
+2.400000095367432 3.599999904632568 7.800000190734863 10 10.19999980926514 11.3
+> 9999961853027 14.60000038146973 14.80000019073486 16.20000076293945 17.600000
+> 38146973 19.39999961853027 22 23.20000076293945 24 25.39999961853027 27 28.20
+> 000076293945 32.79999923706055 33.40000152587891 33.79999923706055 34.7999992
+> 3706055 36.20000076293945 38 39.20000076293945 39.40000152587891 55
+4 6.599999904632568 6.800000190734863 8.800000190734863 10.60000038146973 13.60
+> 000038146973 15.39999961853027 15.60000038146973 16.39999961853027 16.7999992
+> 3706055 17.60000038146973 19.60000038146973 24.20000076293945 25.600000381469
+> 73 26.20000076293945 27.20000076293945 27.60000038146973 29.39999961853027 31
+>  32 34.40000152587891 35.20000076293945 43 47.79999923706055 55.4000015258789
+> 1
+2.599999904632568 3.200000047683716 9.600000381469727 14.60000038146973 16 16.2
+> 0000076293945 17.60000038146973 17.79999923706055 19.20000076293945 20.200000
+> 76293945 21.39999961853027 24.20000076293945 24.60000038146973 25 27.20000076
+> 293945 35.59999847412109 36.20000076293945 40 40.40000152587891 41.5999984741
+> 2109 42.79999923706055 45 46.59999847412109 50.59999847412109
+11 14.60000038146973 15.39999961853027 15.80000019073486 16.20000076293945 16.3
+> 9999961853027 17.79999923706055 20.39999961853027 21.20000076293945 23.399999
+> 61853027 26 26.39999961853027 27.20000076293945 28.39999961853027 28.60000038
+> 146973 32 35.20000076293945 35.40000152587891 38 42.40000152587891 42.7999992
+> 3706055 48.79999923706055 52 53.20000076293945 57.59999847412109
+6.199999809265137 8.199999809265137 13.19999980926514 13.80000019073486 14.6000
+> 0038146973 15.39999961853027 15.60000038146973 15.80000019073486 16 16.600000
+> 38146973 16.79999923706055 17.60000038146973 18.60000038146973 19.39999961853
+> 027 21.79999923706055 26.20000076293945 28.39999961853027 30.20000076293945 3
+> 1.20000076293945 41.59999847412109 44 44.40000152587891 47.79999923706055 55
+3.599999904632568 6.199999809265137 10.60000038146973 13.60000038146973 13.8000
+> 0019073486 14.60000038146973 15.39999961853027 16.20000076293945 16.799999237
+> 06055 17.60000038146973 17.79999923706055 19.39999961853027 23.20000076293945
+>  24.20000076293945 24.60000038146973 26 26.20000076293945 28.60000038146973 3
+> 2 34.79999923706055 35.40000152587891 39.20000076293945 39.40000152587891 46.
+> 59999847412109 48.79999923706055 52 57.59999847412109
+2.599999904632568 6.800000190734863 8.199999809265137 9.600000381469727 10.1999
+> 9980926514 11.39999961853027 13.19999980926514 14.60000038146973 15.600000381
+> 46973 15.80000019073486 16.20000076293945 16.39999961853027 17.60000038146973
+>  19.20000076293945 19.39999961853027 24.20000076293945 25 28.39999961853027 3
+> 0.20000076293945 32 32.79999923706055 34.40000152587891 35.20000076293945 40 
+> 50.59999847412109 53.20000076293945
+4 6.599999904632568 10 11 14.80000019073486 15.39999961853027 15.80000019073486
+>  16 16.20000076293945 16.60000038146973 17.79999923706055 18.60000038146973 2
+> 1.39999961853027 26.39999961853027 28.39999961853027 33.40000152587891 35.200
+> 00076293945 35.59999847412109 38 41.59999847412109 42.40000152587891 42.79999
+> 923706055 55 55.40000152587891
+2.400000095367432 3.200000047683716 8.800000190734863 14.60000038146973 17.6000
+> 0038146973 19.60000038146973 20.39999961853027 21.20000076293945 21.799999237
+> 06055 22 23.39999961853027 24 25 25.39999961853027 25.60000038146973 26.20000
+> 076293945 27.20000076293945 31.20000076293945 35.59999847412109 38 40.4000015
+> 2587891 41.59999847412109 42.79999923706055 43 55
+7.800000190734863 14.60000038146973 15.39999961853027 15.60000038146973 16.3999
+> 9961853027 16.79999923706055 18.60000038146973 20.20000076293945 25.399999618
+> 53027 27 27.20000076293945 27.60000038146973 28.20000076293945 29.39999961853
+> 027 31 33.79999923706055 36.20000076293945 44 44.40000152587891 45 47.7999992
+> 3706055
+  CV repeat 20 of 20
+
+. postclose `cv'
+
+. di as text "npregress margins failures across all CV folds: `npfail'"
+npregress margins failures across all CV folds: 0
+
+. di as text "npregress series margins failures across all CV folds: `seriesfai
+> l'"
+npregress series margins failures across all CV folds: 0
+
+. assert `npfail' == 0
+
+. assert `seriesfail' == 0
+
+. 
+. use "examples/moto_cv.dta", clear
+
+. gen msort = .
+(140 missing values generated)
+
+. local i = 0
+
+. foreach m of local methods {
+  2.     local ++i
+  3.     quietly replace msort = `i' if method == "`m'"
+  4. }
+
+. gen str30 label = ""
+(140 missing values generated)
+
+. replace label = "Linear regression"          if method == "linear"
+(20 real changes made)
+
+. replace label = "Restricted cubic spline (5)" if method == "mksp"
+(20 real changes made)
+
+. replace label = "npregress kernel"            if method == "kernel"
+(20 real changes made)
+
+. replace label = "npregress series"            if method == "series"
+(20 real changes made)
+
+. replace label = "NNS connect, order(`ORD')"     if method == "conn"
+(20 real changes made)
+
+. replace label = "NNS OLS, order(`ORD')"         if method == "ols"
+(20 real changes made)
+
+. replace label = "NNS OLS, order(`ORD') median"  if method == "olsmed"
+(20 real changes made)
+
+. 
+. collapse (mean) mean_cv_rmse = rmse (sd) sd_cv_rmse = rmse (count) reps = rms
+> e, ///
+>     by(method label msort)
+
+. sort msort
+
+. format mean_cv_rmse sd_cv_rmse %6.3f
+
+. list label mean_cv_rmse sd_cv_rmse reps, noobs
+
+  +----------------------------------------------------------+
+  |                       label   mean_c~e   sd_cv_~e   reps |
+  |----------------------------------------------------------|
+  |           Linear regression     46.525      0.324     20 |
+  | Restricted cubic spline (5)     35.622      0.658     20 |
+  |            npregress kernel     24.519      0.786     20 |
+  |            npregress series     24.080      1.290     20 |
+  |       NNS connect, order(3)     28.023      1.757     20 |
+  |----------------------------------------------------------|
+  |           NNS OLS, order(3)     24.547      0.766     20 |
+  |    NNS OLS, order(3) median     24.613      0.934     20 |
+  +----------------------------------------------------------+
+
+. export delimited label mean_cv_rmse sd_cv_rmse reps using ///
+>     "manuscript/table_moto_cv.csv", replace
+file manuscript/table_moto_cv.csv saved
+
+. 
+. di _n "MOTORCYCLE EXAMPLE COMPLETE"
+
+MOTORCYCLE EXAMPLE COMPLETE
+
+. 
+end of do-file

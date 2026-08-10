@@ -1,0 +1,91 @@
+scenario,model,r2,rmse_y,rmse_true,rank_true,rank_y
+clustered_peak_dip,NNS OLS xy o3,.9847565932695023,1.1674136,.39422607,1,1
+clustered_peak_dip,NNS OLS xy o4,.9860401879322741,1.1171809,.40594962,2,2
+clustered_peak_dip,NNS OLS xy o5,.9877852153213856,1.0450249,.57278174,3,3
+clustered_peak_dip,NNS OLS xonly o5,.982159706209609,1.2629459,.57825208,4,4
+clustered_peak_dip,NNS connect xy o3,.9775953802590772,1.4153131,.86863691,5,5
+clustered_peak_dip,npregress kernel,.9764137941800751,1.4521544,.93442887,6,6
+clustered_peak_dip,NNS connect xonly o5,.9752110463484963,1.4887193,1.0007005,7,7
+clustered_peak_dip,NNS connect xy o5,.9689684210102461,1.6656574,1.3667159,8,8
+clustered_peak_dip,NNS connect xy o4,.9663888201289188,1.733507,1.3900478,9,9
+clustered_peak_dip,NNS OLS xy o2,.9664135547226137,1.7328691,1.3921059,10,10
+clustered_peak_dip,NNS OLS xonly o4,.9654582671879847,1.7573401,1.4068992,11,11
+clustered_peak_dip,NNS OLS xonly o2,.9566796219563778,1.9680216,1.6140747,12,12
+clustered_peak_dip,NNS connect xonly o4,.9529930870962262,2.0500507,1.7691245,13,13
+clustered_peak_dip,NNS OLS xonly o3,.8497812122839059,3.6647627,3.5845852,14,14
+clustered_peak_dip,NNS connect xy o2,.7867686449278376,4.3662567,4.276597,15,15
+clustered_peak_dip,NNS connect xonly o3,.6098288340872008,5.9062433,5.7717404,16,16
+clustered_peak_dip,NNS connect xonly o2,.6064424172035392,5.931819,5.7893085,17,17
+clustered_peak_dip,Linear regression,.0374887138975509,9.2765532,9.1568594,18,18
+s_curve_noise,NNS OLS xonly o4,.9468061052461487,4.0365419,.95461035,1,1
+s_curve_noise,NNS OLS xonly o5,.9485911859815002,3.968235,.97306681,2,2
+s_curve_noise,NNS OLS xy o3,.9486639292713781,3.9654264,1.0023015,3,3
+s_curve_noise,NNS OLS xy o2,.9454091774478462,4.0892005,1.0749116,4,4
+s_curve_noise,npregress kernel,.9471022556677255,4.02529,1.1038082,5,5
+s_curve_noise,NNS connect xonly o5,.9479546246419697,3.9927273,1.1475487,6,6
+s_curve_noise,NNS OLS xonly o2,.9459883262018779,4.0674515,1.1675625,7,7
+s_curve_noise,NNS OLS xy o4,.95012730909367,3.9084988,1.2019055,8,8
+s_curve_noise,NNS connect xonly o4,.9434517811452372,4.1618657,1.6907046,9,9
+s_curve_noise,NNS OLS xy o5,.9597672691175584,3.5104947,2.0934463,10,10
+s_curve_noise,NNS connect xy o5,.925329312171326,4.7824855,2.8488538,11,11
+s_curve_noise,NNS OLS xonly o3,.9267471073204202,4.7368646,2.8537645,12,12
+s_curve_noise,NNS connect xy o4,.927654586010352,4.7074323,3.282831,13,13
+s_curve_noise,NNS connect xy o3,.9167587015210631,5.0494957,3.6821392,14,14
+s_curve_noise,NNS connect xonly o2,.9123536006190305,5.1813822,3.8863871,15,15
+s_curve_noise,NNS connect xonly o3,.9002928894560919,5.5263915,4.4354548,16,16
+s_curve_noise,NNS connect xy o2,.8841284524759107,5.95754,5.0900559,17,17
+s_curve_noise,Linear regression,.8609906791751176,6.525301,5.5787086,18,18
+sine_grid_low_noise,npregress kernel,.9971423800690141,.038048845,.012109634,1,1
+sine_grid_low_noise,NNS OLS xy o4,.9970442505537259,.038696624,.016506979,2,2
+sine_grid_low_noise,NNS OLS xy o5,.9974330427856323,.036061898,.019406062,3,3
+sine_grid_low_noise,NNS OLS xonly o5,.9938632634348462,.055758104,.043176673,4,4
+sine_grid_low_noise,NNS OLS xy o3,.9935905050802114,.056983769,.045599416,5,5
+sine_grid_low_noise,NNS connect xy o5,.9884554752697285,.076476373,.07255286,6,6
+sine_grid_low_noise,NNS OLS xy o2,.9844955448527281,.088627301,.08191105,7,7
+sine_grid_low_noise,NNS connect xy o4,.9791816211749554,.10269817,.096795894,8,8
+sine_grid_low_noise,NNS connect xonly o5,.9689399165059821,.1254413,.11566731,9,9
+sine_grid_low_noise,NNS OLS xonly o4,.9349282101425239,.18156646,.17494428,10,10
+sine_grid_low_noise,NNS connect xy o3,.8641829346796968,.26231095,.25754443,11,11
+sine_grid_low_noise,NNS connect xonly o4,.7878691545397494,.32782432,.32140678,12,12
+sine_grid_low_noise,NNS connect xy o2,.7663376812860384,.34405953,.33753932,13,13
+sine_grid_low_noise,NNS OLS xonly o2,.3379135015762663,.57915741,.57482833,14,14
+sine_grid_low_noise,NNS OLS xonly o3,.2578515624689447,.61317527,.60943794,15,15
+sine_grid_low_noise,NNS connect xonly o2,.2170487361431227,.62980574,.62462878,16,16
+sine_grid_low_noise,NNS connect xonly o3,.1765448565458426,.64589101,.64202327,17,17
+sine_grid_low_noise,Linear regression,.1532558649096569,.65496087,.65069765,18,18
+sine_random_low_noise,npregress kernel,.9970884439859219,.038548172,.015279106,1,1
+sine_random_low_noise,NNS OLS xy o4,.9971314015323534,.03826274,.018219862,2,2
+sine_random_low_noise,NNS OLS xy o5,.9977039026055941,.034232322,.025097594,3,3
+sine_random_low_noise,NNS connect xy o5,.9965703383357373,.041837607,.029707652,4,4
+sine_random_low_noise,NNS OLS xy o3,.9927643254562051,.060768805,.041876663,5,5
+sine_random_low_noise,NNS OLS xonly o5,.9928653502819083,.060343087,.045568325,6,6
+sine_random_low_noise,NNS OLS xy o2,.9822215047296217,.095255204,.090307958,7,7
+sine_random_low_noise,NNS connect xy o4,.9769194572929022,.1085336,.10242518,8,8
+sine_random_low_noise,NNS connect xonly o5,.96763367920357,.12852508,.12000316,9,9
+sine_random_low_noise,NNS OLS xonly o4,.9422218185481199,.17172089,.16788971,10,10
+sine_random_low_noise,NNS connect xy o3,.8536877595381793,.27326342,.26750731,11,11
+sine_random_low_noise,NNS connect xonly o4,.8060674709866018,.31460565,.31097317,12,12
+sine_random_low_noise,NNS connect xy o2,.7784950320631323,.33622727,.33166811,13,13
+sine_random_low_noise,NNS OLS xonly o2,.3388504421346422,.58088619,.57499391,14,14
+sine_random_low_noise,NNS OLS xonly o3,.3360425812116846,.58211839,.57779455,15,15
+sine_random_low_noise,NNS connect xonly o3,.2402194707881816,.62270921,.61893749,16,16
+sine_random_low_noise,NNS connect xonly o2,.209038909009694,.63535839,.63029128,17,17
+sine_random_low_noise,Linear regression,.097141230316903,.67881447,.67359269,18,18
+threshold_noise,NNS OLS xonly o4,.9629240019263148,2.3106804,.35249349,1,1
+threshold_noise,npregress kernel,.9637411727642745,2.2850742,.37600586,2,2
+threshold_noise,NNS connect xonly o5,.9631600214827748,2.303314,.37995297,3,3
+threshold_noise,NNS OLS xonly o2,.962042007944433,2.3380029,.41240668,4,4
+threshold_noise,NNS OLS xonly o5,.9638124849569595,2.2828259,.46406054,5,5
+threshold_noise,NNS OLS xy o3,.9634090547367746,2.2955155,.47177187,6,6
+threshold_noise,NNS connect xonly o4,.9619276525296119,2.3415222,.50707632,7,7
+threshold_noise,NNS OLS xonly o3,.9605398797862376,2.3838155,.53937417,8,8
+threshold_noise,NNS OLS xy o2,.9586020837730888,2.4416459,.67538613,9,9
+threshold_noise,NNS OLS xy o4,.9665379216428438,2.1951787,.78133613,10,10
+threshold_noise,NNS OLS xy o5,.9709435943046193,2.0455701,1.1174077,11,11
+threshold_noise,NNS connect xy o2,.9517312564324258,2.6364918,1.1998363,12,12
+threshold_noise,NNS connect xy o3,.9543409753393292,2.5642288,1.2350384,13,13
+threshold_noise,NNS connect xonly o2,.9416483905898373,2.8988106,1.7418808,14,14
+threshold_noise,NNS connect xonly o3,.9379614988391844,2.9889874,1.8823001,15,15
+threshold_noise,NNS connect xy o5,.948242950001382,2.7300978,1.9458069,16,16
+threshold_noise,NNS connect xy o4,.9345666002544889,3.0696805,2.0620165,17,17
+threshold_noise,Linear regression,.7650421323835859,5.8168578,5.4314618,18,18

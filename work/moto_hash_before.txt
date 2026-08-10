@@ -1,0 +1,2 @@
+c0b6f66e4dce3d414b97415b4ca59e1cba9a07bf  manuscript/table_moto_diag.csv
+8c7a96bf1b77565718f9f8b9571ebd3bdd9d938e  manuscript/table_moto_cv.csv

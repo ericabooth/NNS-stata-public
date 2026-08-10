@@ -1,0 +1,242 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do work/probe_vce_fix.do 
+
+. clear all
+
+. set more off
+
+. adopath ++ "code"
+  [1]              "code"
+  [2]  (BASE)      "/Applications/StataNow/ado/base/"
+  [3]  (SITE)      "/_codeshare/"
+  [4]              "."
+  [5]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [6]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [7]  (OLDPLACE)  "~/ado/"
+
+. set seed 1729
+
+. set obs 250
+Number of observations (_N) was 0, now 250.
+
+. generate double x = runiform()
+
+. generate double y = sin(6*x) + rnormal()
+
+. generate long cid = ceil(_n/10)
+
+. replace cid = . in 241/250
+(10 real changes made, 10 to missing)
+
+. 
+. capture noisily nnsreg y x, method(ols) vce(hc2) noplot
+vce() must be robust or cluster clustvar
+
+. assert _rc == 198
+
+. capture noisily nnsreg y x, method(ols) vce(bootstrap) noplot
+vce() must be robust or cluster clustvar
+
+. assert _rc == 198
+
+. capture noisily nnsreg y x, method(ols) vce(jackknife) noplot
+vce() must be robust or cluster clustvar
+
+. assert _rc == 198
+
+. capture noisily nnsreg y x, method(ols) vce(robust) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   y
+Independent variable:  x
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.4031
+Root MSE:             1.0095
+
+------------------------------------------------------------------------------
+             |               Robust
+           y | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           x |   3.749596   7.493267     0.50   0.617    -11.01296    18.51216
+       knot1 |    14.1485   22.33969     0.63   0.527    -29.86314    58.16014
+       knot2 |  -19.22964   30.50721    -0.63   0.529     -79.3322    40.87292
+       knot3 |   2.752914   16.32662     0.17   0.866    -29.41233    34.91816
+       knot4 |  -1.942768    15.0003    -0.13   0.897    -31.49501    27.60947
+       knot5 |  -11.15182   18.07663    -0.62   0.538    -46.76477    24.46113
+       knot6 |   15.74865    10.2469     1.54   0.126    -4.438859    35.93616
+       knot7 |  -53.67187     25.479    -2.11   0.036    -103.8683   -3.475422
+       knot8 |   4452.704   2583.442     1.72   0.086    -636.9606    9542.369
+       knot9 |  -4408.672   2565.633    -1.72   0.087    -9463.251     645.906
+      knot10 |   131.1501   213.8943     0.61   0.540    -290.2452    552.5454
+      knot11 |  -133.8061   232.9188    -0.57   0.566    -592.6816    325.0695
+      knot12 |   29.40239   38.60937     0.76   0.447    -46.66233    105.4671
+      knot13 |  -13.72975   27.24127    -0.50   0.615    -67.39805    39.93856
+       _cons |  -.0331136   .2947533    -0.11   0.911      -.61381    .5475827
+------------------------------------------------------------------------------
+
+. assert _rc == 0
+
+. capture noisily nnsreg y x, method(ols) vce(cluster cid) generate(yhat) noplo
+> t
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   y
+Independent variable:  x
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        240
+R-squared:            0.3881
+Root MSE:             1.0203
+
+                                   (Std. err. adjusted for 24 clusters in cid)
+------------------------------------------------------------------------------
+             |               Robust
+           y | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           x |   4.939711    8.33049     0.59   0.559    -12.29322    22.17264
+       knot1 |   8.581906   18.97822     0.45   0.655    -30.67753    47.84134
+       knot2 |  -12.61146   27.92995    -0.45   0.656    -70.38896    45.16604
+       knot3 |   .1042474    20.0977     0.01   0.996    -41.47102    41.67952
+       knot4 |   .1776403   13.28941     0.01   0.989    -27.31361    27.66889
+       knot5 |  -15.16857   17.80255    -0.85   0.403    -51.99595    21.65882
+       knot6 |    18.4295   11.71871     1.57   0.129    -5.812497     42.6715
+       knot7 |  -54.72418   19.59289    -2.79   0.010    -95.25517    -14.1932
+       knot8 |   883.6551   443.5329     1.99   0.058    -33.86264    1801.173
+       knot9 |  -838.4441   434.2769    -1.93   0.066    -1736.814    59.92611
+      knot10 |   -74.4884   441.1998    -0.17   0.867    -987.1797    838.2029
+      knot11 |   85.08166   459.7713     0.19   0.855    -866.0277    1036.191
+      knot12 |   11.83159    33.5353     0.35   0.727    -57.54147    81.20465
+      knot13 |  -9.776322   19.83216    -0.49   0.627    -50.80226    31.24962
+       _cons |  -.0940868   .3213375    -0.29   0.772     -.758824    .5706505
+------------------------------------------------------------------------------
+
+. assert _rc == 0
+
+. assert e(N) == 240
+
+. count if e(sample)
+  240
+
+. assert r(N) == 240
+
+. count if !missing(yhat)
+  240
+
+. assert r(N) == 240
+
+. matrix S = e(segments)
+
+. mata: st_numscalar("seg_n", sum(st_matrix("S")[,5]))
+
+. assert scalar(seg_n) == 240
+
+. capture noisily nnsreg y x, method(ols) slopes noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   y
+Independent variable:  x
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.4031
+Root MSE:             1.0095
+
+------------------------------------------------------------------------------
+           y | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+           x |   3.749596   9.613349     0.39   0.697    -15.18976    22.68895
+       knot1 |    14.1485   26.94948     0.53   0.600    -38.94493    67.24194
+       knot2 |  -19.22964   34.21828    -0.56   0.575    -86.64342    48.18414
+       knot3 |   2.752914   17.18868     0.16   0.873    -31.11068    36.61651
+       knot4 |  -1.942768     14.776    -0.13   0.896    -31.05311    27.16757
+       knot5 |  -11.15182   18.72204    -0.60   0.552     -48.0363    25.73266
+       knot6 |   15.74865   10.53239     1.50   0.136    -5.001316    36.49862
+       knot7 |  -53.67187    29.1897    -1.84   0.067    -111.1788    3.835053
+       knot8 |   4452.704   3123.199     1.43   0.155    -1700.341    10605.75
+       knot9 |  -4408.672   3100.279    -1.42   0.156    -10516.56    1699.218
+      knot10 |   131.1501   228.7031     0.57   0.567    -319.4202    581.7204
+      knot11 |  -133.8061   247.6253    -0.54   0.589    -621.6552    354.0431
+      knot12 |   29.40239   38.43445     0.77   0.445    -46.31772    105.1225
+      knot13 |  -13.72975   25.30898    -0.54   0.588    -63.59122    36.13173
+       _cons |  -.0331136   .4260414    -0.08   0.938     -.872462    .8062347
+------------------------------------------------------------------------------
+
+Per-segment slopes (cumulative), conditional on the NNS knots
+-------------------------------------------------------------------------
+ segment                 x range       slope   std. err.       n
+-------------------------------------------------------------------------
+       1      .00459 to    .0717      3.7496      9.6133      17
+       2       .0717 to     .107     17.8981     20.0012       8
+       3        .107 to     .141     -1.3315     16.2972      12
+       4        .141 to     .342      1.4214      1.9338      51
+       5        .342 to     .377     -0.5214     13.6521       8
+       6        .377 to     .473    -11.6732      6.2617      19
+       7        .473 to      .58      4.0754      5.2445      26
+       8         .58 to     .619    -49.5964     26.0806       6
+       9        .619 to     .619   4403.1079   3099.6956       0
+      10        .619 to     .829     -5.5645      2.1268      64
+      11        .829 to     .832    125.5856    227.9328       1
+      12        .832 to     .867     -8.2205     23.4184      14
+      13        .867 to     .898     21.1819     20.2581       4
+      14        .898 to     .998      7.4521      6.8472      20
+-------------------------------------------------------------------------
+Standard errors are conditional on the data-derived knot locations.
+note: 4 reported x range(s) contain fewer than minobs(        8) observations; 
+> minobs() governs recursive partition groups, not the counts between adjacent 
+> knots.
+note: 1 reported x range(s) contain no estimation observations; their slopes de
+> scribe interpolation between knots.
+
+. assert _rc == 0
+
+. display "VCE FIX PROBE PASSED"
+VCE FIX PROBE PASSED
+
+. 
+end of do-file

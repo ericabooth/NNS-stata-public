@@ -1,0 +1,149 @@
+\ifnum 25=1 \def\bibname{Reference}
+\else \def\bibname{References} \fi
+\begin{thebibliography}{25}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+\expandafter\ifx\csname url\endcsname\relax
+  \def\url#1{\texttt{#1}}\fi
+\expandafter\ifx\csname urlprefix\endcsname\relax\def\urlprefix{URL }\fi
+
+\bibitem[{Bawa(1975)}]{bawa_1975}
+Bawa, V.~S. 1975.
+\newblock Optimal Rules for Ordering Uncertain Prospects.
+\newblock \emph{Journal of Financial Economics} 2(1): 95--121.
+
+\bibitem[{Cattaneo et~al.\@(2024)Cattaneo, Crump, Farrell, and
+  Feng}]{cattaneo_etal_2024_aer}
+Cattaneo, M.~D., R.~K. Crump, M.~H. Farrell, and Y.~Feng. 2024.
+\newblock On Binscatter.
+\newblock \emph{American Economic Review} 114(5): 1488--1514.
+
+\bibitem[{Cattaneo et~al.\@(2025)Cattaneo, Crump, Farrell, and
+  Feng}]{cattaneo_etal_2025_binsreg}
+\mbox{\vrule width30.25006ptheight2.62222ptdepth-2.25222pt}. 2025.
+\newblock Binscatter Regressions.
+\newblock \emph{Stata Journal} 25(1): 3--50.
+
+\bibitem[{Fan and Gijbels(1996)}]{fan_gijbels_1996}
+Fan, J., and I.~Gijbels. 1996.
+\newblock \emph{Local Polynomial Modelling and Its Applications}.
+\newblock London: Chapman \& Hall.
+
+\bibitem[{Fishburn(1977)}]{fishburn_1977}
+Fishburn, P.~C. 1977.
+\newblock Mean-Risk Analysis with Risk Associated with Below-Target Returns.
+\newblock \emph{American Economic Review} 67(2): 116--126.
+\urlprefix\url{https://www.jstor.org/stable/1807225}.
+\bibitem[{Friedman(1991)}]{friedman_1991}
+Friedman, J.~H. 1991.
+\newblock Multivariate Adaptive Regression Splines (with discussion).
+\newblock \emph{Annals of Statistics} 19(1): 1--67.
+
+\bibitem[{Hansen(2017)}]{hansen_2017_kink}
+Hansen, B.~E. 2017.
+\newblock Regression Kink with an Unknown Threshold.
+\newblock \emph{Journal of Business \& Economic Statistics} 35(2): 228--240.
+
+\bibitem[{Hayfield and Racine(2008)}]{hayfield_racine_2008}
+Hayfield, T., and J.~S. Racine. 2008.
+\newblock Nonparametric Econometrics: The np Package.
+\newblock \emph{Journal of Statistical Software} 27(5): 1--32.
+
+\bibitem[{Jann(2014)}]{jann_2014}
+Jann, B. 2014.
+\newblock Plotting Regression Coefficients and Other Estimates.
+\newblock \emph{Stata Journal} 14(4): 708--737.
+
+\bibitem[{Kim et~al.\@(2000)Kim, Fay, Feuer, and Midthune}]{kim_etal_2000}
+Kim, H.-J., M.~P. Fay, E.~J. Feuer, and D.~N. Midthune. 2000.
+\newblock Permutation Tests for Joinpoint Regression with Applications to
+  Cancer Rates.
+\newblock \emph{Statistics in Medicine} 19(3): 335--351.
+
+\bibitem[{Muggeo(2003)}]{muggeo_2003}
+Muggeo, V. M.~R. 2003.
+\newblock Estimating Regression Models with Unknown Break-Points.
+\newblock \emph{Statistics in Medicine} 22(19): 3055--3071.
+
+\bibitem[{Nawrocki and Viole(2024)}]{nawrocki_viole_2024}
+Nawrocki, D., and F.~Viole. 2024.
+\newblock Estimation Error and Partial Moments.
+\newblock \emph{International Review of Financial Analysis} 95: 103443.
+
+\bibitem[{Newson(2006)}]{newson_2006}
+Newson, R. 2006.
+\newblock Confidence Intervals for Rank Statistics: {Somers'} {D} and
+  Extensions.
+\newblock \emph{Stata Journal} 6(3): 309--334.
+
+\bibitem[{Orsini and Greenland(2011)}]{orsini_greenland_2011}
+Orsini, N., and S.~Greenland. 2011.
+\newblock A Procedure to Tabulate and Plot Results after Flexible Modeling of a
+  Quantitative Covariate.
+\newblock \emph{Stata Journal} 11(1): 1--29.
+
+\bibitem[{Royston(2013)}]{royston_2013_mcp}
+Royston, P. 2013.
+\newblock marginscontplot: Plotting the Marginal Effects of Continuous
+  Predictors.
+\newblock \emph{Stata Journal} 13(3): 510--527.
+
+\bibitem[{Royston and Altman(1994)}]{royston_altman_1994}
+Royston, P., and D.~G. Altman. 1994.
+\newblock Regression Using Fractional Polynomials of Continuous Covariates:
+  Parsimonious Parametric Modelling.
+\newblock \emph{Journal of the Royal Statistical Society, Series C (Applied
+  Statistics)} 43(3): 429--467.
+
+\bibitem[{Ruppert et~al.\@(2003)Ruppert, Wand, and
+  Carroll}]{ruppert_wand_carroll_2003}
+Ruppert, D., M.~P. Wand, and R.~J. Carroll. 2003.
+\newblock \emph{Semiparametric Regression}.
+\newblock Cambridge: Cambridge University Press.
+
+\bibitem[{Silverman(1985)}]{silverman_1985}
+Silverman, B.~W. 1985.
+\newblock Some Aspects of the Spline Smoothing Approach to Non-Parametric
+  Regression Curve Fitting (with discussion).
+\newblock \emph{Journal of the Royal Statistical Society, Series B
+  (Methodological)} 47(1): 1--52.
+
+\bibitem[{{StataCorp}(2025)}]{stata_2025}
+{StataCorp}. 2025.
+\newblock \emph{Stata Statistical Software: Release 19}.
+\newblock StataCorp LLC, College Station, TX.
+
+\bibitem[{Vinod and Viole(2018{\natexlab{a}})}]{vinod_viole_2018_segments}
+Vinod, H.~D., and F.~Viole. 2018{\natexlab{a}}.
+\newblock Clustering and Curve Fitting by Line Segments.
+\newblock Preprints.org working paper 2018010090.
+
+\bibitem[{Vinod and Viole(2018{\natexlab{b}})}]{vinod_viole_2018_clusters}
+\mbox{\vrule width30.25006ptheight2.62222ptdepth-2.25222pt}.
+  2018{\natexlab{b}}.
+\newblock Nonparametric Regression Using Clusters.
+\newblock \emph{Computational Economics} 52(4): 1317--1334.
+
+\bibitem[{Viole(2026)}]{viole_2026_nns}
+Viole, F. 2026.
+\newblock \emph{{NNS}: Nonlinear Nonparametric Statistics}.
+\newblock Comprehensive R Archive Network.
+\newblock {R} package version 13.1, available at
+  https://CRAN.R-project.org/package=NNS.
+
+\bibitem[{Viole and Nawrocki(2012{\natexlab{a}})}]{viole_nawrocki_2012_cdf}
+Viole, F., and D.~Nawrocki. 2012{\natexlab{a}}.
+\newblock Cumulative Distribution Functions and UPM/LPM Analysis.
+\newblock SSRN working paper 2148482.
+\urlprefix\url{https://ssrn.com/abstract=2148482}.
+\bibitem[{Viole and Nawrocki(2012{\natexlab{b}})}]{viole_nawrocki_2012_corr}
+\mbox{\vrule width30.25006ptheight2.62222ptdepth-2.25222pt}.
+  2012{\natexlab{b}}.
+\newblock Deriving Nonlinear Correlation Coefficients from Partial Moments.
+\newblock SSRN working paper 2148522.
+\urlprefix\url{https://ssrn.com/abstract=2148522}.
+\bibitem[{Viole and Nawrocki(2013)}]{viole_nawrocki_2013}
+\mbox{\vrule width30.25006ptheight2.62222ptdepth-2.25222pt}. 2013.
+\newblock \emph{Nonlinear Nonparametric Statistics: Using Partial Moments}.
+\newblock CreateSpace Independent Publishing Platform.
+
+\end{thebibliography}

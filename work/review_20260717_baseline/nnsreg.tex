@@ -1,0 +1,1065 @@
+\inserttype[st0000]{article}
+\author{E. A. Booth}{%
+  Eric A. Booth\\
+  Texas 2036\\
+  Austin, TX\\
+  eric.a.booth@gmail.com
+}
+\title[nnsreg: Reportable segment slopes]{nnsreg: Reportable segment slopes for nonlinear relationships in Stata}
+\maketitle
+
+\begin{abstract}
+The \stcmd{nnsreg} command fits a piecewise-linear regression curve using the
+partition-based approach of Nonlinear Nonparametric Statistics
+\citep{viole_nawrocki_2013}, previously available to R users in the NNS
+package \citep{viole_2026_nns}.  The command recursively partitions the data
+using partial-moment quadrants, computes a regression point inside each
+partition, and posts the connected segments as a linear spline with
+data-derived knots.  Because the fit is posted as ordinary estimation output,
+users can apply \stcmd{predict}, \stcmd{estimates table}, \stcmd{lincom}, and
+coefficient plots to report where a fitted relationship bends, which ranges
+are flat or steep, and whether that pattern survives a change in tuning
+options.  Three simulated examples and a 100-replication Monte Carlo study
+compare the command with linear regression, \stcmd{npregress kernel}, and
+\stcmd{npregress series}.  On smooth curves the two \stcmd{npregress}
+estimators recover the true curve more accurately on average.  When
+observations cluster around sharp local features, a least-squares variant,
+\stcmd{method(ols)}, which keeps the NNS-derived knots but fits the segment
+coefficients by least squares, nearly matches the most accurate smoother on average
+and is far more stable across replications.  The simulated examples use known
+generating curves so the comparison can score signal recovery; a real-data
+illustration on the motorcycle-impact benchmark, scored by cross-validation,
+shows the same pattern out of sample, where the least-squares fit ties the
+kernel smoother and reports segment slopes it does not.
+
+\keywords{\inserttag, nnsreg, nonparametric regression, partial moment,
+linear spline, knot, postestimation}
+\end{abstract}
+
+\section{Introduction}
+
+Where does a relationship change?  The applied analyst who asks this
+question, in education finance, program evaluation, or health-services
+research, usually needs less a picture of the relationship than a few
+reproducible statements about where it is flat, steep, or changing.  Test
+outcomes that stop improving after spending passes a level, infrastructure
+that deteriorates slowly until a threshold age and quickly afterward, or risk
+that accelerates only in the tail are each a question about where a fitted
+curve bends and how steep it is on either side.  A single regression slope
+cannot answer them, because it averages over the whole range of the data.  A
+flexible smoother such as \stcmd{npregress kernel} \citep{stata_2025} can
+display the shape, but its output is a curve, and the analyst must do
+additional work, with \stcmd{margins} or by hand, to turn it into a small set
+of reportable slope statements.  Making a flexible fit easy to report is
+itself a recognized Stata problem: \stcmd{xblc} tabulates and plots flexible
+covariate fits \citep{orsini_greenland_2011}, and \stcmd{marginscontplot}
+plots the marginal effects of continuous predictors \citep{royston_2013_mcp}.
+\stcmd{nnsreg} works in that tradition, and returns a different object: named
+ranges and slopes as ordinary estimation results.
+
+Stata already offers several routes to a nonlinear fit, and \stcmd{nnsreg}
+sits among them rather than replacing them.  \stcmd{mkspline} builds a linear
+spline but asks the analyst to set the knots, either by hand or at sample
+percentiles, which spread the knots by rank rather than by the data's own
+structure; placing knots adaptively, from the data rather than by rank, is a
+long-standing idea in the spline literature \citep{friedman_1991}.
+Polynomials and fractional polynomials \citep{royston_altman_1994} bend
+smoothly but do not name the places where the slope changes.
+\stcmd{npregress series} fits a spline or
+polynomial basis with a data-driven number of terms and posts estimation
+results, and \stcmd{npregress kernel} traces a smooth mean.  The
+community-contributed \stcmd{binsreg} partitions the regressor's support into
+data-driven quantile bins and fits within each bin, with formal inference
+\citep{cattaneo_etal_2024_aer,cattaneo_etal_2025_binsreg}.  And when the
+question is the location of one or a few breaks, with inference on where they
+lie, formal segmented-regression and joinpoint estimators
+\citep{muggeo_2003,kim_etal_2000}, and Stata's own \stcmd{threshold} command,
+answer it directly; \stcmd{nnsreg} is an exploratory, descriptive complement
+to those, not a substitute.  What \stcmd{nnsreg}
+adds is a particular way of placing the segment boundaries, the NNS partition
+of the data, paired with coefficients named for the first slope and each
+later slope change.
+
+\stcmd{nnsreg} takes its way of placing boundaries from an established
+method.  Nonlinear Nonparametric Statistics (NNS), developed by
+\citet{viole_nawrocki_2013}, builds regression fits from partial moments,
+which are averages of deviations below and above a target value
+\citep{viole_nawrocki_2012_cdf,viole_nawrocki_2012_corr,nawrocki_viole_2024}.
+The NNS regression
+algorithm recursively partitions the scatterplot into quadrants, computes a
+representative regression point inside each partition, and connects the
+points with line segments.  \citet{vinod_viole_2018_clusters} compare this
+approach with kernel regression from the R np package
+\citep{hayfield_racine_2008} and report three practical advantages: the
+method requires no bandwidth choice, the segment slopes estimate derivatives
+directly, and the partitions adapt to data whose support is clustered rather
+than spread evenly.  They also report that in-sample fit is similar for the
+two approaches, with differences they describe as minor.  A companion paper
+\citep{vinod_viole_2018_segments} describes the NNS regression points as
+analogues of linear-spline knots.  The reference implementation is the NNS
+package for R \citep{viole_2026_nns}.
+
+This is a software and workflow contribution, not a new estimator.  First,
+\stcmd{nnsreg} brings the univariate core of NNS regression to Stata as a
+deliberate subset of the R package (section~\ref{sec:rpackage} lists the
+differences).  Second, and to my mind the more useful part for applied work,
+\stcmd{nnsreg} posts its fit as ordinary Stata estimation results.  The
+first-segment slope and each subsequent change in slope are named coefficients
+in \stcmd{e(b)}, the knot locations are stored in \stcmd{e(knots)}, and
+\stcmd{predict}, \stcmd{estimates store}, \stcmd{lincom}, and \stcmd{coefplot}
+\citep{jann_2014} work as they do after \stcmd{regress}.  Posting a
+nonstandard fit as ordinary results so that the usual postestimation tools
+apply is a familiar way to build a Stata command \citep{newson_2006}.  A
+threshold claim such as ``the fitted slope is flat below age 35 and about 1.2
+points per year at the oldest ages'' becomes a pair of \stcmd{lincom}
+statements rather than a reading exercise on a graph.
+
+\stcmd{nnsreg} is descriptive: a bend in a
+fitted curve is a feature of the conditional mean in the sample, not a causal
+threshold, and causal interpretation still requires a research design.  Nor
+is \stcmd{nnsreg} a general replacement for \stcmd{npregress kernel}: in
+my simulations the kernel smoother recovers smooth curves more accurately on
+average, and I say so throughout.  The command earns its place when the
+data are clustered or gapped, or when the deliverable is a segment-level
+summary with standard postestimation tools.
+
+Section~\ref{sec:method} explains how the method works.
+Section~\ref{sec:command} documents the syntax, options, and stored results.
+Section~\ref{sec:sims} compares the command with linear regression and
+\stcmd{npregress kernel} and \stcmd{npregress series} on three simulated
+designs with known truth, including a Monte Carlo study across 100
+replications.  Section~\ref{sec:real} repeats the comparison on the real
+motorcycle-impact data, scored by cross-validation.
+Section~\ref{sec:practice} offers guidance on when to use which
+tool, and section~\ref{sec:conclusion} summarizes the findings and the
+command's limits.
+
+\section{The NNS regression approach}
+\label{sec:method}
+
+\subsection{Partial moments and recursive partitioning}
+
+The estimation problem is the usual one: we observe pairs $(x_i, y_i)$ and
+want the conditional mean of $y$ as a function of $x$ without committing to a
+functional form.  The NNS approach starts from partial moments, which
+summarize a variable's behavior on one side of a target value $t$.  One-sided
+moments of this kind are an established tool with a five-decade history in
+risk measurement \citep{bawa_1975,fishburn_1977}; the NNS contribution is to
+pair targets on both variables of a bivariate sample and to build a
+regression method on the resulting quadrants.  The lower and upper partial moments of degree $r$ are
+\[
+  \mathrm{LPM}_r(t;X) = \frac{1}{N}\sum_{i=1}^{N} \max(0,\,t-X_i)^r
+\]
+\[
+  \mathrm{UPM}_r(t;X) = \frac{1}{N}\sum_{i=1}^{N} \max(0,\,X_i-t)^r
+\]
+At degree zero these are simply the shares of observations below and above
+$t$, so partial moments generalize the empirical distribution function
+\citep{viole_nawrocki_2012_cdf}.  The useful fact for regression is that a
+pair of targets, one for $X$ and one for $Y$, divides the scatterplot into
+four quadrants, and those quadrants describe the local joint behavior of the
+two variables \citep{viole_nawrocki_2012_corr}.
+
+The algorithm applies this idea recursively.  Starting from the full sample,
+\stcmd{nnsreg} computes a center for $X$ and a center for $Y$ (the mean by
+default, the median with \stcmd{noise(median)}), splits the observations into
+the four quadrants around that center, and then repeats the split inside
+every quadrant that still holds more than eight observations.  Splitting
+therefore reaches more finely into dense regions than into sparse ones.  The
+\stcmd{order()} option caps how many rounds of splitting are allowed, so a
+higher order permits a more finely segmented fit; the default of three
+balances resolution against noise across the designs studied here
+(section~\ref{sec:sens}).  With \stcmd{partition(xonly)}, the command instead
+splits only along $X$, which produces vertical bands; this variant is useful
+as a sensitivity check and for applications where partitioning on the outcome
+is undesirable.
+
+\subsection{From regression points to a linear spline}
+
+After partitioning stops, \stcmd{nnsreg} collapses each final group to a
+single regression point, its center in $(x, y)$ space.  It then adds two
+boundary points at the smallest and largest observed $x$ (estimated from
+local linear fits near each boundary), adds a central point, sorts all points
+by $x$, and connects them.  The connected segments are then expressed as a
+linear spline.  With interior knots $k_1,\ldots,k_m$ placed at the interior
+regression points, the fitted function is
+\[
+  \sthat{f}(x) = \beta_0 + \beta_1 x +
+    \sum_{j=1}^{m} \gamma_j (x-k_j)_+
+\]
+where $(x-k_j)_+=\max(0,\,x-k_j)$.  The coefficient $\beta_1$ is the slope of
+the first segment, and each $\gamma_j$ is the change in slope at knot $k_j$.
+This representation follows \citet{vinod_viole_2018_segments}, who describe
+NNS regression points as playing the role that knots play in a linear
+spline; the $(x-k_j)_+$ basis itself is the standard truncated-line
+representation of a linear spline in semiparametric regression
+\citep{ruppert_wand_carroll_2003}.  It is also what makes the method
+convenient in Stata: a
+piecewise-linear curve is exactly a regression on a spline basis, so the fit
+can be posted, stored, and manipulated with standard tools.
+
+\stcmd{nnsreg} offers two ways to assign coefficients to that basis.  The
+default, \stcmd{method(connect)}, chooses the coefficients so that the spline
+passes through the NNS regression points; this is the construction closest to
+the NNS literature.  The alternative, \stcmd{method(ols)}, keeps the
+NNS-derived knots but estimates the spline coefficients by ordinary least
+squares.  This least-squares refinement is a natural extension rather than
+part of the original NNS construction: it borrows the NNS knot locations and
+nothing else.  The
+connected fit summarizes the partition structure itself; the OLS fit uses the
+same segmentation but minimizes squared error given the knots, which in my
+simulations recovers the true curve more accurately (section~\ref{sec:sims}).
+
+The reported standard errors deserve a word of caution.  For
+\stcmd{method(ols)}, they are the usual least-squares ones, conditional on
+the data-derived knot locations.  For \stcmd{method(connect)}, \stcmd{nnsreg}
+rescales the OLS spline covariance matrix by the connected fit's residual
+variance.  Neither version accounts for the fact that the knots were chosen
+from the same data; inference that does account for an estimated break or
+kink location is available for segmented models with one or a few knots
+\citep{muggeo_2003,hansen_2017_kink}, and extending it to the NNS partition
+is beyond this article.  I therefore recommend reading these intervals as
+descriptive summaries of segment stability rather than as exact inference;
+the sensitivity tools in section~\ref{sec:sens} are the more trustworthy
+check.
+
+\subsection{Relationship to the R NNS package}
+\label{sec:rpackage}
+
+The NNS package for R \citep{viole_2026_nns} is the reference implementation
+of this method, and \stcmd{nnsreg} deliberately implements a subset of it.
+Users moving between the two should know the differences.  The R function
+\stcmd{NNS.reg} supports multivariate regressors, classification-style
+prediction, and automatic selection of the partition depth based on an
+internal dependence measure interpreted as a signal-to-noise ratio
+\citep{vinod_viole_2018_segments}.  \stcmd{nnsreg} is univariate, uses a
+fixed user-chosen \stcmd{order()}, and offers mean or median partition
+centers.  In exchange, it integrates with Stata's estimation machinery:
+e-class results, \stcmd{predict} in and out of the estimation sample, and
+compatibility with \stcmd{estimates}, \stcmd{lincom}, and \stcmd{coefplot}.
+Users who need multivariate NNS regression or automated order selection
+should use the R package; users whose deliverable is a Stata workflow with
+reportable segment coefficients are the audience for \stcmd{nnsreg}.%
+\footnote{Because the two implementations differ in these details, they agree
+in shape rather than term for term, and they scale the \stcmd{order()}
+argument differently, so matching them requires matching the number of knots
+rather than the order.  A fidelity check on the motorcycle data of
+section~\ref{sec:real}, distributed with the development repository, confirms
+that the fitted values track each other closely once matched this way.}
+
+\section{The nnsreg command}
+\label{sec:command}
+
+\subsection{Syntax}
+
+\begin{stsyntax}
+nnsreg
+\depvar\
+\varname\
+\optif\
+\optin\
+\optional{, \underbar{ord}er(\num)
+\underbar{noi}se(mean $|$ median)
+\underbar{meth}od(connect $|$ ols)
+\underbar{part}ition(xy $|$ xonly)
+\underbar{min}obs(\num)
+\underbar{l}evel(\num)
+vce({\it vcetype\/})
+\underbar{slop}es
+\underbar{nop}lot
+\underbar{knotl}ines
+graph\_opts({\it twoway\_options\/})
+\underbar{gen}erate(\newvarname)}
+\end{stsyntax}
+
+\noindent
+\stcmd{vce({\it vcetype\/})} may be \stcmd{robust} or \stcmd{cluster}
+{\it clustvar\/} and is allowed only with \stcmd{method(ols)}.
+
+\noindent
+After estimation, \stcmd{predict} follows the usual syntax:
+
+\begin{stsyntax}
+predict
+\optional{{\it type\/}}
+\newvarname\
+\optif\
+\optin\
+\optional{, xb residuals}
+\end{stsyntax}
+
+\noindent
+where \stcmd{xb} (the default) computes fitted values from the stored spline
+and \stcmd{residuals} computes the difference between the observed outcome
+and the fitted values; the two options are mutually exclusive.  Because the
+spline basis is rebuilt from \stcmd{e(knots)} at prediction time,
+\stcmd{predict} also scores observations outside the estimation sample; the
+terminal segments extrapolate linearly, and \stcmd{predict} prints a note
+whenever it scores points beyond the estimation range stored in
+\stcmd{e(xmin)} and \stcmd{e(xmax)}.  \stcmd{nnsreg} runs under Stata 16 or
+later, which is also the release the \stcmd{npregress series} comparisons in
+section~\ref{sec:sims} require.
+
+\subsection{Options}
+
+\hangpara
+\stcmd{order(\num)} sets the partition depth, that is, how many rounds of
+recursive splitting are allowed.  A higher order permits more line segments,
+which can follow curvature more closely but can also track noise.  The
+default is \stcmd{order(3)}.  Section~\ref{sec:sens} shows how to read a
+small grid of orders as a sensitivity check.
+
+\hangpara
+\stcmd{noise(mean $|$ median)} sets the center used for partitioning and for
+the regression points.  \stcmd{noise(mean)}, the default, uses arithmetic
+means.  \stcmd{noise(median)} uses medians, which move less when a partition
+contains outlying or skewed values.
+
+\hangpara
+\stcmd{method(connect $|$ ols)} sets how spline coefficients are assigned.
+\stcmd{method(connect)}, the default, interpolates the NNS regression points
+and is the construction closest to the NNS literature.  \stcmd{method(ols)}
+keeps the NNS-derived knots and estimates the spline coefficients by ordinary
+least squares, which typically fits the observed data more closely.
+
+\hangpara
+\stcmd{partition(xy $|$ xonly)} sets the partition style.
+\stcmd{partition(xy)}, the default, splits on both variables in quadrants,
+following the NNS construction.  \stcmd{partition(xonly)} splits only along
+the regressor, producing vertical bands, and serves as a sensitivity check.
+
+\hangpara
+\stcmd{minobs(\num)} sets the smallest group the recursive partition keeps
+splitting: a group is split only if it holds more than \num\ observations.
+The default is \stcmd{minobs(8)}.  Larger values yield fewer, longer segments
+and make a useful sensitivity check alongside \stcmd{order()}.
+
+\hangpara
+\stcmd{level(\num)} sets the confidence level for the reported intervals; the
+default is \stcmd{level(95)} or as set by \stcmd{set level}.
+
+\hangpara
+\stcmd{vce({\it vcetype\/})} passes a variance estimator through to the
+least-squares stage; {\it vcetype\/} may be \stcmd{robust} or \stcmd{cluster}
+{\it clustvar}.  Because it re-weights an ordinary least-squares covariance,
+it is allowed only with \stcmd{method(ols)}.  The resulting standard errors
+are robust or clustered but remain conditional on the data-derived knots.
+
+\hangpara
+\stcmd{slopes} reports a table of per-segment slopes, each the cumulative sum
+of the spline coefficients up to that segment, with delta-method standard
+errors.  These are the quantities the \stcmd{lincom} statements below compute
+by hand; the same table is stored in \stcmd{e(segments)}.
+
+\hangpara
+\stcmd{noplot} suppresses the default scatter-and-fit graph.
+
+\hangpara
+\stcmd{knotlines} overlays vertical dashed lines at the interior knot
+locations on the default graph.
+
+\hangpara
+\stcmd{graph\_opts({\it twoway\_options\/})} passes options through to the
+default graph.
+
+\hangpara
+\stcmd{generate(\newvarname)} creates a variable holding the fitted values
+over the estimation sample.
+
+\subsection{Stored results}
+
+\stcmd{nnsreg} stores the following in \stcmd{e()}:
+
+\begin{stresults2}
+\stresultsgroup{Scalars} \\
+\stcmd{e(N)} & number of observations \\
+\stcmd{e(r2)} & coefficient of determination, $1-\sum e_i^2/\sum(y_i-\stbar{y})^2$ \\
+\stcmd{e(rmse)} & root mean squared error, $(\sum e_i^2/\mathrm{df}_r)^{1/2}$ \\
+\stcmd{e(order)} & partition depth \\
+\stcmd{e(minobs)} & minimum group size for splitting \\
+\stcmd{e(df\_m)} & model degrees of freedom \\
+\stcmd{e(df\_r)} & residual degrees of freedom \\
+\stcmd{e(xmin)} & minimum of the regressor in the estimation sample \\
+\stcmd{e(xmax)} & maximum of the regressor in the estimation sample \\
+\stresultsgroup{Macros} \\
+\stcmd{e(cmd)} & \stcmd{nnsreg} \\
+\stcmd{e(predict)} & \stcmd{nnsreg\_p} \\
+\stcmd{e(depvar)} & name of dependent variable \\
+\stcmd{e(indepvar)} & name of independent variable \\
+\stcmd{e(method)} & \stcmd{connect} or \stcmd{ols} \\
+\stcmd{e(noise)} & \stcmd{mean} or \stcmd{median} \\
+\stcmd{e(partition)} & \stcmd{xy} or \stcmd{xonly} \\
+\stcmd{e(knots)} & interior knot locations, space separated \\
+\stresultsgroup{Matrices} \\
+\stcmd{e(b)} & coefficient vector \\
+\stcmd{e(V)} & variance--covariance matrix \\
+\stcmd{e(knotmat)} & interior knot locations, full precision \\
+\stcmd{e(segments)} & per-segment $x$ range, slope, standard error, and $n$ \\
+\stresultsgroup{Functions} \\
+\stcmd{e(sample)} & marks estimation sample \\
+\end{stresults2}
+
+\noindent
+The coefficients in \stcmd{e(b)} are named after the regressor (the
+first-segment slope) and \stcmd{knot1}, \stcmd{knot2}, and so on (the change
+in slope at each interior knot).  \stcmd{e(segments)} collects the per-segment
+slopes (cumulative sums of those coefficients) with delta-method standard
+errors, which is what the \stcmd{slopes} option displays and what the
+\stcmd{lincom} tests below compute one segment at a time.  For
+\stcmd{method(connect)}, \stcmd{e(r2)} and \stcmd{e(rmse)} are computed from
+raw squared residuals because the connected fit is not least squares, so its
+residuals need not average zero.  \stcmd{margins} is not supported, because
+the knot coefficients are spline-basis terms rather than variables in the
+dataset; \stcmd{lincom} and \stcmd{e(segments)} are the routes to marginal
+slopes.  The \stcmd{slopes} option prints that table directly, one row per
+segment with its $x$ range, slope, and standard error:
+
+\begin{stlog}
+\input{nnsreg_ex_slopes.log.tex}\nullskip
+\end{stlog}
+
+\section{Simulated comparisons}
+\label{sec:sims}
+
+\subsection{Design: three known curves, one seed, and 100 replications}
+
+All examples are simulated so that the true conditional mean is known, which
+lets us score each method on how well it recovers the curve that generated
+the data rather than only on how well it fits noise.  The variable names borrow from Texas policy settings (school
+spending and a test-passing rate, water-system pipe age and water loss) to
+keep the examples concrete.  The names are labels of convenience: all values
+are synthetic and stylized, and no claim in this article is about actual
+districts, assessments, or water systems.
+
+The replication script \stcmd{test\_nnsreg.do}, included with this article,
+generates every number and figure shown here from fixed seeds.  It creates
+three designs:
+
+\begin{itemize}
+\item \textbf{Education (smooth S-curve).}  For 250 districts, spending per
+pupil $x$ is uniform on $[5, 20]$ (thousands of dollars) and the true passing
+rate is $40 + 45/\{1+\exp(-0.8[x-11])\}$, an S-curve that is flat at low
+spending, rises through the middle, and plateaus near the top.  Noise is
+normal with standard deviation 4.
+\item \textbf{Water (threshold).}  For 300 systems, pipe age $a$ is uniform
+on $[0, 80]$ years and the true loss rate is flat at 8\% for $a \le 35$ and
+$8 + 0.4(a-35) + 0.01(a-35)^2$ afterward, so the curve has a kink at age 35.
+Noise has standard deviation 2.5.
+\item \textbf{Clustered (peak and dip).}  For 260 units, the score $s$ is
+drawn from a three-component normal mixture (means 22, 36, and 58 with
+standard deviations 3, 2.2, and 4; mixture weights 0.45, 0.30, and 0.25), so
+the support is dense in three regions and thin between them.  The true curve
+is $18 + 0.18s + 10\,g_{24,35} - 16\,g_{35,18} + 8\,g_{58,50}$, where
+$g_{c,w}=\exp\{-(s-c)^2/w\}$, which produces a local peak near 24, a sharp dip
+near 35, and a partial recovery near 58.  Noise has standard deviation 1.2.
+This design mirrors the clustered-data setting that
+\citet{vinod_viole_2018_clusters} identify as favorable to partition-based
+fits.
+\end{itemize}
+
+Each design has a canonical dataset with a fixed seed (2036, 2037, and 2038),
+used for the figures and the single-run table.  Because any single draw can
+flatter one method by luck, the script also redraws each design 100 times
+with fresh seeds recorded in the script, refits every method, and stores the
+results; section~\ref{sec:mc} reports that study.
+
+Three statistics summarize each fit.  In-sample $R^2$ and RMSE against the
+observed outcome measure conformity to the data, including its noise.  RMSE
+against the true curve, available only because the data are simulated,
+measures recovery of the signal.  The distinction matters: a method can score
+better on observed RMSE by chasing noise while scoring worse on the truth,
+and the clustered example below shows exactly that pattern.
+Table~\ref{tab:diag} collects the single-run diagnostics for all three
+examples; the discussion of each example refers to its rows.
+
+\begin{table}[h!]
+\centering
+\caption{Single-run diagnostics from the canonical simulated datasets.
+``Observed RMSE'' scores each fit against the noisy outcome; ``true RMSE''
+scores it against the known generating curve.  Both RMSE columns divide by
+$N$ (a root mean squared deviation), which differs slightly from
+\stcmd{e(rmse)}, whose divisor is the residual degrees of freedom.  All three
+fixed-seed draws flatter the NNS OLS spline relative to its replication
+average; section~\ref{sec:mc} reports the averages across 100 replications.}
+\label{tab:diag}
+\begin{tabular}{llccc}
+\hline
+Example & Model & $R^2$ & Observed RMSE & True RMSE \\
+\hline
+Education & Linear regression & 0.864 & 6.611 & 5.460 \\
+Education & \stcmd{npregress kernel} & 0.950 & 4.015 & 0.923 \\
+Education & \stcmd{npregress series} & 0.950 & 4.007 & 0.811 \\
+Education & NNS connect, \stcmd{order(2)} & 0.924 & 4.939 & 3.210 \\
+Education & NNS connect, \stcmd{order(3)} & 0.927 & 4.828 & 3.283 \\
+Education & NNS connect, \stcmd{order(3) noise(median)} & 0.938 & 4.460 & 2.350 \\
+Education & NNS OLS, \stcmd{order(3)} & 0.949 & 4.027 & 0.784 \\
+\hline
+Water & Linear regression & 0.757 & 5.502 & 5.121 \\
+Water & \stcmd{npregress kernel} & 0.962 & 2.181 & 0.865 \\
+Water & \stcmd{npregress series} & 0.953 & 2.418 & 0.401 \\
+Water & NNS connect, \stcmd{order(2)} & 0.945 & 2.622 & 1.132 \\
+Water & NNS connect, \stcmd{order(3)} & 0.938 & 2.776 & 1.460 \\
+Water & NNS connect, \stcmd{order(3) noise(median)} & 0.929 & 2.979 & 1.804 \\
+Water & NNS OLS, \stcmd{order(3)} & 0.954 & 2.389 & 0.372 \\
+Water & NNS OLS, \stcmd{order(3) partition(xonly)} & 0.949 & 2.522 & 0.883 \\
+\hline
+Clustered & Linear regression & 0.042 & 9.234 & 9.219 \\
+Clustered & \stcmd{npregress kernel} & 0.985 & 1.162 & 0.484 \\
+Clustered & \stcmd{npregress series} & 0.985 & 1.138 & 0.392 \\
+Clustered & NNS connect, \stcmd{order(3)} & 0.976 & 1.468 & 0.999 \\
+Clustered & NNS OLS, \stcmd{order(3)} & 0.984 & 1.210 & 0.492 \\
+Clustered & NNS OLS, \stcmd{order(4)} & 0.987 & 1.078 & 0.452 \\
+Clustered & NNS OLS, \stcmd{order(5)} & 0.989 & 0.987 & 0.596 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Example 1: on a smooth S-curve, the kernel smoother wins on average and the spline stays close}
+\label{sec:edu}
+
+The education design asks whether each method can represent a plateau without
+the analyst choosing a polynomial order or hand-picking knots.
+Figure~\ref{fig:edufits} shows four of the fits, one per panel, so each curve
+can be read against the data without overplotting; \stcmd{npregress series}
+appears in table~\ref{tab:diag} rather than in the figure.  The linear fit misses
+both the flat start and the plateau, and its true-curve RMSE of 5.460 is six
+to seven times that of the smoothers and the NNS OLS fit.  The kernel smoother
+tracks the S-curve closely (true-curve RMSE 0.923) and \stcmd{npregress
+series} slightly closer (0.811).  The NNS OLS spline is closest in this
+particular draw (0.784), though the Monte Carlo study below shows the two
+\stcmd{npregress} fits ahead on average; the connected NNS fit is visibly more
+jagged (3.283) because its coefficients interpolate regression points instead
+of minimizing squared error.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.95\textwidth]{fig_edu_fits.pdf}
+\caption{Education example, one fitted method per panel (orange) against the
+same simulated data (gray dots) and true curve (black).  The linear model
+misses the plateau.  The kernel smoother and the NNS OLS spline both recover
+the S-shape, with true-curve RMSE 0.923 and 0.784 in this draw; the connected
+NNS fit is more jagged because it interpolates regression points.}
+\label{fig:edufits}
+\end{figure}
+
+The log below shows the workflow.  \stcmd{nnsreg} prints a standard
+coefficient table in which the first row is the first-segment slope and each
+\stcmd{knot} row is a change in slope, and stored models feed
+\stcmd{estimates table} like results from any other estimation command.
+
+\begin{stlog}
+\input{nnsreg_ex_edu.log.tex}\nullskip
+\end{stlog}
+
+Figure~\ref{fig:educoef} plots the stored coefficients with \stcmd{coefplot}
+\citep{jann_2014}, with the knot locations from \stcmd{e(knots)} written into
+the coefficient labels.  The two knots near spending of 6.5 and 6.7 mark short
+boundary segments; their wide intervals carry little information.  The
+readable pattern is in the interior: positive slope changes where the curve is
+rising are offset by negative changes higher up the spending range, and that
+offset is what flattens the fit into the plateau.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.85\textwidth]{fig_edu_coef.pdf}
+\caption{Stored slope components for the education example, labeled with the
+adaptive knot locations from \stcmd{e(knots)}.  Wide intervals on the first
+two knots reflect short segments near the boundary.  The interior pattern
+delivers the plateau: positive slope changes where the curve is rising are
+offset by negative changes higher up the spending range.}
+\label{fig:educoef}
+\end{figure}
+
+Because the plateau is the substantive claim, we can test it directly.  The
+slope of the final segment equals the first-segment coefficient plus every
+knot coefficient, which is one \stcmd{lincom} statement:
+
+\begin{stlog}
+\input{nnsreg_ex_plateau.log.tex}\nullskip
+\end{stlog}
+
+The estimated terminal slope is 0.06 percentage points per thousand dollars
+(95\% interval $-1.39$ to 1.52), consistent with the plateau built into the
+generating curve, whose slope at spending of 20 is about 0.03.  These
+intervals are conditional on the estimated knot locations, so we read them as
+descriptive support rather than exact inference.  Still, the question ``is
+the top of the curve flat?'' becomes a one-line test on stored coefficients
+rather than a visual judgment.
+
+\subsection{Example 2: on a threshold curve, the estimated knots land near the true change point}
+\label{sec:water}
+
+The water design has a kink: the true loss rate is flat until pipe age 35 and
+rises afterward.  Figure~\ref{fig:waterfits} shows the same four-panel
+comparison, and table~\ref{tab:diag} again covers \stcmd{npregress series}.
+The kernel smoother, the series fit, and the NNS OLS
+spline all recover the flat-then-rising shape (true-curve RMSE 0.865, 0.401,
+and 0.372 in this draw); the linear fit averages the two regimes and
+represents neither.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.95\textwidth]{fig_water_fits.pdf}
+\caption{Water example, one fitted method per panel.  The true curve is flat
+until pipe age 35 and rises afterward.  The kernel smoother and the NNS OLS
+spline both recover the shape (true-curve RMSE 0.865 and 0.372); the linear
+fit averages the flat and rising regimes and represents neither.}
+\label{fig:waterfits}
+\end{figure}
+
+What the segmented fit adds is a set of locations.
+Figure~\ref{fig:waterknots} draws the interior knots stored in
+\stcmd{e(knots)} over the data: several knots land near the true change point
+at age 35, and the fitted slope changes concentrate there.  The same claim
+can be made numerically with two \stcmd{lincom} statements, one for the first
+segment and one for the last:
+
+\begin{stlog}
+\input{nnsreg_ex_water.log.tex}\nullskip
+\end{stlog}
+
+The fitted slope among the youngest systems is $-0.13$ percentage points per
+year (95\% interval $-0.42$ to 0.17), indistinguishable from the true value
+of zero, while the terminal slope is 1.21 (1.02 to 1.40), close to the true
+slope of 1.3 at age 80.  Table~\ref{tab:diag} also reports the
+\stcmd{partition(xonly)} variant for this example (true RMSE 0.883): the
+vertical-band partition is less accurate here than the quadrant default but
+reproduces the same substantive contrast.  Confirm that the two partition
+styles agree in this way before reporting any threshold.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.9\textwidth]{fig_water_knots.pdf}
+\caption{The NNS OLS fit for the water example with its interior knots
+(dashed gray lines, from \stcmd{e(knots)}) and the true change point at age
+35 (navy line).  Several knots land near the true kink, and the fitted curve
+is flat to the left of it and rising to the right, matching the
+slope-contrast tests in the text.}
+\label{fig:waterknots}
+\end{figure}
+
+\subsection{Example 3: clustered data are the segmented fit's best case}
+\label{sec:cluster}
+
+The clustered design is the setting the NNS literature identifies as
+favorable \citep{vinod_viole_2018_clusters}: observations are dense in three
+regions with thin support between them, and the true curve has a sharp dip.
+A kernel smoother must choose one bandwidth profile for data whose local
+density varies sharply across the support; the NNS partitions instead adapt
+to where the observations sit.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.95\textwidth]{fig_cluster_fits.pdf}
+\caption{Clustered example, one fitted method per panel.  Observations
+concentrate in three regions, with a sharp dip in the true curve near the
+middle cluster.  In this draw the kernel smoother and the NNS OLS spline are
+nearly tied (true-curve RMSE 0.484 and 0.492); the Monte Carlo study shows
+that across repeated draws the segmented fit is more accurate than the
+kernel in this design (table~\ref{tab:mc}).}
+\label{fig:clusterfits}
+\end{figure}
+
+Figure~\ref{fig:clusterfits} shows the single-run comparison, and it also
+shows why single runs mislead: in this particular draw the kernel smoother
+(0.484) and the NNS OLS spline (0.492) are nearly tied, and \stcmd{npregress
+series}, again in table~\ref{tab:diag} rather than the figure, edges both
+(0.392).  The Monte Carlo study in section~\ref{sec:mc}
+shows that the series estimator's average advantage comes with much larger
+draw-to-draw variability.  Table~\ref{tab:diag} adds the \stcmd{order()}
+progression, which previews the overfitting tradeoff: moving from
+\stcmd{order(3)} to \stcmd{order(4)} improves both observed and true RMSE, but
+\stcmd{order(5)} improves observed RMSE (0.987) while worsening true RMSE
+(0.596).  Extra segments eventually fit noise, and only the true-curve metric
+reveals it.
+
+\subsection{The Monte Carlo study: the kernel wins the smooth designs, the segmented fit wins the clustered one}
+\label{sec:mc}
+
+A comparison based on one simulated dataset is weak evidence, so the
+replication script redraws every design 100 times (fresh regressor values and
+fresh noise each time), refits linear regression, \stcmd{npregress kernel},
+\stcmd{npregress series}, and three NNS specifications at their default
+settings, and scores each fit against the true curve.  Table~\ref{tab:mc}
+reports the mean and standard deviation of true-curve RMSE across replications
+and the share of replications in which each competitor beats the kernel
+smoother.  Figure~\ref{fig:mc} shows the full distributions.  Because every
+method is refit on the same draw, the per-design comparisons are paired, so
+the small mean gaps in the smooth designs reflect systematic differences
+rather than sampling noise.  Every estimator fit all 300 design-replications
+without error.
+
+\begin{table}[h!]
+\centering
+\caption{Monte Carlo summary across 100 replications per design.  Cells show
+the mean of RMSE against the true curve, its standard deviation across
+replications, and the share of replications in which the model beats
+\stcmd{npregress kernel} on that metric.  The \stcmd{npregress} estimators
+lead both smooth designs; in the clustered design the NNS OLS fits trade a
+little average accuracy for much lower variance.}
+\label{tab:mc}
+\begin{tabular}{llccc}
+\hline
+Design & Model & Mean true RMSE & SD & Beats kernel \\
+\hline
+Education & Linear regression & 5.512 & 0.169 & 0.00 \\
+Education & \stcmd{npregress kernel} & 0.802 & 0.194 & -- \\
+Education & \stcmd{npregress series} & 0.749 & 0.219 & 0.62 \\
+Education & NNS connect, \stcmd{order(3)} & 3.168 & 0.596 & 0.00 \\
+Education & NNS OLS, \stcmd{order(3)} & 0.887 & 0.180 & 0.28 \\
+Education & NNS OLS, \stcmd{order(4)} & 1.290 & 0.180 & 0.00 \\
+\hline
+Water & Linear regression & 5.116 & 0.132 & 0.00 \\
+Water & \stcmd{npregress kernel} & 0.426 & 0.104 & -- \\
+Water & \stcmd{npregress series} & 0.416 & 0.082 & 0.52 \\
+Water & NNS connect, \stcmd{order(3)} & 1.531 & 0.273 & 0.00 \\
+Water & NNS OLS, \stcmd{order(3)} & 0.483 & 0.095 & 0.23 \\
+Water & NNS OLS, \stcmd{order(4)} & 0.784 & 0.100 & 0.00 \\
+\hline
+Clustered & Linear regression & 9.172 & 0.301 & 0.00 \\
+Clustered & \stcmd{npregress kernel} & 0.716 & 0.233 & -- \\
+Clustered & \stcmd{npregress series} & 0.467 & 0.333 & 0.89 \\
+Clustered & NNS connect, \stcmd{order(3)} & 1.114 & 0.252 & 0.10 \\
+Clustered & NNS OLS, \stcmd{order(3)} & 0.540 & 0.091 & 0.67 \\
+Clustered & NNS OLS, \stcmd{order(4)} & 0.496 & 0.067 & 0.80 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.98\textwidth]{fig_mc_rmse.pdf}
+\caption{Distribution of true-curve RMSE across 100 Monte Carlo replications,
+by design and method (linear regression omitted; its values sit far above
+every panel and appear in table~\ref{tab:mc}).  The two \stcmd{npregress}
+estimators are most accurate in the smooth designs.  In the clustered design
+\stcmd{npregress series} has the lowest average error but the widest spread,
+while the NNS OLS fits are nearly as accurate on average and far more stable.
+The vertical scale differs by design, and RMSE is in the outcome's units.}
+\label{fig:mc}
+\end{figure}
+
+The results split by the shape of the curve, and the two \stcmd{npregress}
+estimators behave alike.  In the two smooth designs both smoothers are more
+accurate on average than any NNS specification: in the education design the
+kernel averages 0.802 and series 0.749, against 0.887 for the best NNS fit,
+and in the water design the three are close (0.426, 0.416, and 0.483).  The
+NNS OLS spline beats the kernel in about a quarter of the smooth-design
+replications, and series beats it in 52\% (water) and 62\% (education) of
+replications, so the two
+\stcmd{npregress} flavors are near-substitutes here.
+\citet{vinod_viole_2018_clusters} report that in-sample fit is similar for
+NNS and kernel regression, with differences they call minor, and these smooth
+designs are consistent with that reading.
+
+The clustered design tells a subtler story than a simple ranking.  On
+average, \stcmd{npregress series} is the most accurate method (0.467), a shade
+ahead of NNS OLS \stcmd{order(4)} (0.496) and \stcmd{order(3)} (0.540), all of
+which beat the kernel (0.716).  But the average is not the whole picture:
+series is the least stable method in this design, with a standard deviation of
+0.333 across replications, larger than the kernel's 0.233 and roughly four
+to five times the NNS OLS spread of 0.07 to 0.09.  Its data-driven term selection
+occasionally overfits the gaps between clusters, so a single series fit can
+land far from the truth even though its typical fit is excellent.  The NNS OLS
+fits give up little on average and buy a great deal of reliability: about
+the same mean error with a fifth of the standard deviation.  This is the setting the NNS
+literature singles out as favorable to partition-based fits
+\citep{vinod_viole_2018_clusters}, argued there from an example rather than a
+benchmark; the replications here show the advantage is specifically one of
+stability on clustered support.
+
+The Monte Carlo results also discipline a temptation visible in the
+single-run table.  The water draw in table~\ref{tab:diag} shows the NNS
+spline beating the kernel (0.372 versus 0.865), and the education draw does
+the same (0.784 versus 0.923), yet across 100 draws the kernel is slightly
+better on average in both smooth designs; the clustered draw shows a near tie
+that the replications resolve in favor of the spline.  All three fixed-seed
+draws happen to flatter the spline relative to its replication average, which
+is exactly why the replications are worth running.  I report both layers so
+that readers see the honest version: single simulated examples, including
+mine, are illustrations rather than evidence.
+
+Finally, the \stcmd{order(4)} rows are a caution against treating more
+segments as better.  The higher order helps only in the clustered design,
+where the true curve has sharp local features; in both smooth designs it is
+worse than \stcmd{order(3)} because the extra segments track noise.
+
+\subsection{The reported shapes survive order and center changes; extra depth tracks noise}
+\label{sec:sens}
+
+Because \stcmd{order()} and \stcmd{noise()} are judgment calls, the practical
+question is whether the substantive reading survives reasonable variations.
+Figures~\ref{fig:edusens} and~\ref{fig:watersens} overlay connected NNS fits
+across \stcmd{order(2)}, \stcmd{order(3)}, and \stcmd{order(3) noise(median)}
+for the two policy-flavored examples.  In both, the shape that matters (the
+plateau in one, the flat-then-rising threshold in the other) appears in every
+variant, which is the pattern that would justify reporting it.
+Figure~\ref{fig:clustersens} runs the same exercise over \stcmd{order()} in
+the clustered design and shows the failure mode instead: \stcmd{order(5)}
+adds local movement that improves observed fit while drifting from the true
+curve, the same pattern as in table~\ref{tab:diag}.  When a finding
+disappears between \stcmd{order(2)} and \stcmd{order(3)}, or between mean and
+median centers, report it as tentative.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.85\textwidth]{fig_edu_sensitivity.pdf}
+\caption{Education example: connected NNS fits across order and center
+choices.  The S-shape and upper plateau appear in every variant, though the
+\stcmd{order(3)} mean fit adds local movement near spending of 6.5 and 16.
+The shared shape is the stability pattern that supports reporting the
+plateau.}
+\label{fig:edusens}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.85\textwidth]{fig_water_sensitivity.pdf}
+\caption{Water example: connected NNS fits across order and center choices.
+Every variant shows the flat region below age 35 and the rise after it;
+\stcmd{order(2)} is smoother, and \stcmd{order(3)} allows more local movement
+through the flat region and near the threshold.}
+\label{fig:watersens}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.85\textwidth]{fig_cluster_sensitivity.pdf}
+\caption{Clustered example: NNS OLS fits at orders 3 through 5 against the
+kernel benchmark.  Orders 3 and 4 recover the peak, dip, and recovery;
+\stcmd{order(5)} adds movement that improves observed fit but drifts from the
+true curve, the overfitting pattern quantified in table~\ref{tab:diag}.}
+\label{fig:clustersens}
+\end{figure}
+
+\section{A real-data illustration}
+\label{sec:real}
+
+The simulated designs let me score how well each method recovers a curve I
+built, but they are stylized by construction.  To watch \stcmd{nnsreg} on data
+I did not design, I turn to the motorcycle-impact benchmark: accelerometer
+readings from a crash-helmet experiment, measured against time after impact.
+The data come from \citet{silverman_1985}, are reprinted in
+\citet{fan_gijbels_1996}, and ship with Stata Press as \stcmd{motorcycle.dta}
+(the dataset in the \stcmd{[R] lpoly} examples).  They are \stcmd{nnsreg}'s
+favorable case: the regressor is heavily tied and clustered (94 distinct times
+among 133 readings), the mean response is flat before impact and then plunges
+into a trough and rebounds, and the noise grows with time.  Because the true
+mean is unknown here, I judge accuracy by held-out error from repeated
+cross-validation, the real-data stand-in for the true-curve RMSE of
+section~\ref{sec:sims}.
+
+\subsection{On the impact trough, the segmented fit tracks the smoothers}
+
+Figure~\ref{fig:motofits} shows four fits, one per panel.  The linear fit
+cannot represent a curve that reverses twice (in-sample RMSE 45.98 against the
+observed acceleration).  The kernel smoother and the NNS OLS spline both
+follow the flat pre-impact run, the trough, and the rebound, with in-sample
+RMSE 21.74 and 21.47; \stcmd{npregress series} is close behind at 21.72.  The
+connected NNS fit is visibly rougher (30.64), the same jaggedness the
+simulated examples showed, because its coefficients interpolate the
+regression points rather than minimizing squared error.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.95\textwidth]{fig_moto_fits.pdf}
+\caption{Motorcycle data, one fitted method per panel (dark line) against the
+133 readings (gray dots).  The linear fit cannot represent a curve that
+reverses; the kernel smoother and the NNS OLS spline both recover the flat
+run, the impact trough, and the rebound (in-sample RMSE 21.74 and 21.47).}
+\label{fig:motofits}
+\end{figure}
+
+\subsection{The knots concentrate in the impact trough}
+
+The interpretive payoff is the same as in the simulated examples: the fit
+reports where it bends.  Figure~\ref{fig:motoknots} draws the 13 interior
+knots of the NNS OLS fit over the data.  The recursive partition places them,
+and on these data they concentrate in the trough between about 14 and 32
+milliseconds, the range where the response changes fastest, and thin out over
+the flat pre-impact stretch and the gentler tail.  That is the adaptive placement the percentile-knot approach of
+\stcmd{mkspline} cannot produce.  The per-segment slopes from the
+\stcmd{slopes} option put numbers on the shape: the fitted slope is flat
+before impact ($0.09$ g per millisecond in the first segment, with a standard
+error of $3.32$, indistinguishable from zero), plunges through the trough
+($-22.8$ and $-31.0$ g per millisecond in the two segments spanning 14.5 to
+17.7 milliseconds), and rebounds afterward ($+25.6$ near 24 to 26
+milliseconds).  These standard errors are conditional on the estimated knots,
+so I read them, as before, as descriptive summaries rather than exact
+inference.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=.9\textwidth]{fig_moto_knots.pdf}
+\caption{The NNS OLS fit for the motorcycle data with its 13 interior knots
+(dashed gray lines, from \stcmd{e(knots)}).  The knots concentrate in the
+impact trough, where the response changes fastest, and thin out where it is
+flat.}
+\label{fig:motoknots}
+\end{figure}
+
+\subsection{Out of sample, the segmented fit ties the kernel}
+
+A fit that follows the data in sample may only be chasing noise, so
+table~\ref{tab:moto} reports held-out root mean squared error from repeated
+five-fold cross-validation (20 repeats, folds redrawn each time; the smallest
+and largest time are always kept in the training fold so no method
+extrapolates).  The story matches the clustered simulation.  The NNS OLS
+spline and the kernel smoother tie: their mean held-out RMSE is 24.55 and
+24.52, a gap far inside the replication spread (standard deviations 0.77 and
+0.79).  The median-centered NNS OLS fit is slightly behind at 24.61.  The
+connected fit is worse and less steady (28.02, standard deviation 1.76), as
+expected of the descriptive rather than the accuracy-competitive variant.
+Both segmented fits and the kernel clearly beat a restricted
+cubic spline with five percentile knots (35.62), whose rank-placed knots miss
+the trough, and all four are far ahead of the linear fit (46.53).
+
+\begin{table}[h!]
+\centering
+\caption{Motorcycle data: fit quality in sample and out of sample.  In-sample
+RMSE is against the observed acceleration; held-out RMSE is the mean (and
+standard deviation) across 20 repeats of five-fold cross-validation, lower is
+better.  \stcmd{npregress series} has no held-out column because its
+\stcmd{predict} scores only the estimation sample and its margins-based
+out-of-sample prediction refuses points outside the fitted spline support;
+\stcmd{nnsreg}, by contrast, rebuilds the basis from \stcmd{e(knots)} and
+scores held-out rows directly.}
+\label{tab:moto}
+\begin{tabular}{lccc}
+\hline
+Method & In-sample RMSE & Held-out RMSE & SD \\
+\hline
+Linear regression & 45.98 & 46.53 & 0.32 \\
+Restricted cubic spline, 5 knots & -- & 35.62 & 0.66 \\
+\stcmd{npregress kernel} & 21.74 & 24.52 & 0.79 \\
+\stcmd{npregress series} & 21.72 & -- & -- \\
+NNS connect, \stcmd{order(3)} & 30.64 & 28.02 & 1.76 \\
+NNS OLS, \stcmd{order(3)} & 21.47 & 24.55 & 0.77 \\
+NNS OLS, \stcmd{order(3) noise(median)} & 21.74 & 24.61 & 0.93 \\
+\hline
+\end{tabular}
+\end{table}
+
+The real data make the same point as the simulations, and add one the
+simulations could not.  On a clustered curve with a sharp feature, the NNS OLS
+spline matches the kernel's accuracy out of sample and reports a compact set of
+segment slopes the kernel does not.  It also scores held-out observations
+directly from the stored spline, where \stcmd{npregress} predicts only within
+its estimation sample (table~\ref{tab:moto}); a fit that predicts out of
+sample from stored estimation results is a practical convenience when the
+deliverable is a rerunnable workflow.
+
+\section{Practical guidance}
+\label{sec:practice}
+
+The simulations support a simple division of labor.  Consider
+\stcmd{npregress kernel} or \stcmd{npregress series} when the goal is the most
+accurate estimate of a smooth conditional mean and the sample covers the range
+of interest evenly; the two were the most accurate methods in both smooth
+designs, and \stcmd{npregress series} is the closest competitor to
+\stcmd{nnsreg} because it too posts a data-driven spline as estimation
+results.  When the goal is instead formal inference on a small number of
+break locations, a segmented or threshold estimator is the right tool, not
+\stcmd{nnsreg}.
+
+Consider \stcmd{nnsreg} when the deliverable is a segment-level summary:
+named slope coefficients, knot locations in \stcmd{e(knots)}, and
+\stcmd{lincom}-testable contrasts such as the plateau and threshold tests
+above, none of which \stcmd{npregress} reports.  The command is also the
+better choice when the regressor's support is clustered or gapped: there
+\stcmd{npregress series} can reach a low average error but swings widely from
+draw to draw, while \stcmd{method(ols)} delivers about the same average
+accuracy with a fraction of the draw-to-draw spread.  Reach for
+\stcmd{method(ols)} when a reliable fit matters more than the best-case fit.  (The default
+connected fit is the descriptive, partition-faithful variant;
+\stcmd{method(ols)} is the accuracy-competitive one.)  And because the two
+approaches' tuning choices fail in different ways, a bandwidth-free
+\stcmd{nnsreg} fit is a useful alternative representation alongside a kernel or
+series fit.  The value there is triangulation: when a kernel smoother and the
+NNS partition both show a plateau or a trough, the feature is less likely an
+artifact of one smoothing choice; when they disagree, the shape is sensitive
+to tuning and is better reported as tentative.  Bandwidth-free is not
+tuning-free, though: \stcmd{order()}, \stcmd{minobs()}, and the partition
+choices control complexity in the bandwidth's place, so the sensitivity grid
+of section~\ref{sec:sens} does the work a bandwidth search would.
+Table~\ref{tab:features} lays the contrasts side by side.
+
+\begin{table}[h!]
+\centering
+\caption{What each command reports.  The two rows that set \stcmd{nnsreg}
+apart are the last two: it scores held-out observations from stored results,
+which \stcmd{npregress} does not, and it derives its knots from the data
+rather than placing them at fixed ranks, which \stcmd{mkspline} does not.}
+\label{tab:features}
+{\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccc}
+\hline
+ & & \stcmd{npregress} & \stcmd{npregress} & \stcmd{mkspline} & \\
+ & \stcmd{nnsreg} & kernel & series & ${}+{}$\stcmd{regress} & \stcmd{lpoly} \\
+\hline
+Posts e-class results & yes & yes & yes & yes & no \\
+No bandwidth to choose & yes & no & yes & yes & no \\
+Named segment-slope contrasts & yes & no & no & yes & no \\
+\stcmd{predict} out of sample & yes & no & no & yes & no \\
+Data-derived knot locations & adaptive & no & no & by rank & no \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+Results from \stcmd{nnsreg} need the same scrutiny as any data-driven
+fit.  Fit a small grid of \stcmd{order()} values and both centers, and report
+whether the shape survives, as in section~\ref{sec:sens}.  And when prediction
+accuracy is the question, compare methods on a common metric that penalizes
+noise-chasing, such as the held-out cross-validation error of the motorcycle
+example in section~\ref{sec:real}; the true-curve RMSE used with the simulated
+designs is the same idea when the generating curve is known.  Turning to
+computation, each example in this
+article fits in well under a second, and the full 100-replication Monte Carlo
+study, including 300 \stcmd{npregress kernel} fits, completes in under three
+minutes on a desktop; I make no stronger computational claims.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+\stcmd{nnsreg} adapts the NNS regression method of
+\citet{viole_nawrocki_2013} to Stata and, more importantly for daily work,
+makes its output a full participant in Stata's estimation ecosystem.  The
+simulations place the command honestly: the \stcmd{npregress} estimators
+recover smooth curves more accurately on average, while on the clustered,
+sharply featured designs studied here the NNS OLS spline nearly matches the
+most accurate smoother on average and is far more stable across samples.  In
+every design it yields a compact segment summary, with reportable slopes and
+their conditional standard errors, that a smooth curve does not.
+
+The package's limits define its future work.  The command is univariate and
+unweighted.  Its interval estimates are conditional on data-derived knots,
+and because the number and location of knots change from resample to
+resample, a coefficient-wise bootstrap is not meaningful; the natural upgrade
+is a bootstrap that repeats the partitioning and summarizes quantities every
+resample shares, such as the fitted curve at fixed grid points or slopes at
+fixed quantiles of the regressor.  And it asks users to choose
+\stcmd{order()} by comparison rather than automating the choice; the
+dependence-based order selection in the R package \citep{viole_2026_nns} and
+cross-validation over a small \stcmd{order()} grid are the obvious models for
+a future \stcmd{order(auto)} option.  I would rather add those pieces after
+they can be validated than imply more automation than the command has today.
+
+\section{Acknowledgments}
+
+The NNS framework is the work of Fred Viole and David Nawrocki, and the
+cluster-based regression variant adapted here was developed by Hrishikesh
+Vinod and Fred Viole.  This article adapts their method to Stata; any errors
+in the adaptation are mine.
+
+\bibliographystyle{sj}
+\bibliography{nnsreg}
+
+\begin{aboutauthor}
+Eric A. Booth is a researcher at Texas 2036, a nonpartisan public-policy
+organization.  His applied work focuses on quantitative policy analysis,
+public data systems, and reproducible Stata workflows for policy research.
+\end{aboutauthor}
+
+\endinput

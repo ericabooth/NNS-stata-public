@@ -1,0 +1,317 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do examples/make_sjlogs.do 
+
+. *! version 1.1.0  05jul2026
+. *! Generates the Stata Journal log excerpts (.log.tex) included in the
+. *! manuscript's stlog environments, using the sjlog command from the sjlatex
+. *! package.
+. *!
+. *! Layout-aware: run from the repository root (where code/ and examples/
+. *! exist) or from the flat submission packet (where the ado and .dta files si
+> t
+. *! in the current directory).  Either way the commands shown in the article
+. *! reproduce exactly as typed.
+. clear all
+
+. set more off
+
+. set linesize 79
+
+. 
+. capture confirm file "code/nnsreg.ado"
+
+. if _rc == 0 {
+.     // Repository layout: stage a flat mirror so logged paths are packet-flat
+> .
+.     cap mkdir "work"
+.     cap mkdir "work/packet_stage"
+.     foreach f in nnsreg.ado nnsreg_p.ado nnsreg_estat.ado nnsreg.sthlp {
+  2.         copy "code/`f'" "work/packet_stage/`f'", replace
+  3.     }
+(file work/packet_stage/nnsreg_estat.ado not found)
+.     foreach f in texas_education texas_water clustered_peak_dip {
+  2.         copy "examples/`f'.dta" "work/packet_stage/`f'.dta", replace
+  3.     }
+.     local outdir "manuscript"
+.     cd "work/packet_stage"
+/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My D
+> rive/NNS-stata-public/work/packet_stage
+.     adopath ++ "."
+  [1]              "."
+  [2]  (BASE)      "/Applications/StataNow/ado/base/"
+  [3]  (SITE)      "/_codeshare/"
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+.     local return_to "../.."
+. }
+
+. else {
+.     // Flat submission-packet layout: run in place.
+.     adopath ++ "."
+.     local outdir "."
+.     local return_to "."
+. }
+
+. 
+. which nnsreg
+./nnsreg.ado
+*! version 1.3.2  18jul2026
+*! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+*! 1.3.2: label connect-fit covariance/model metadata as heuristic/connect;
+*!        remove inherited regress postestimation flags that nnsreg does not
+*!        support; reject unsupported estat/margins calls cleanly; refresh
+*!        standardized coefficients after reposting; trim the stored
+*!        independent-variable name.
+*! 1.3.1: restrict vce() to robust/cluster; align cluster-missingness across
+*!        partitioning, estimation, prediction, and segment counts; clarify
+*!        order-depth implementation; warn on empty and thin x ranges; align
+*!        all retained connect-fit statistics with connected predictions.
+*! 1.3.0: new options minobs(), level(), vce() (method(ols) only), slopes,
+*!        knotlines; new stored results e(segments), e(knotmat), e(xmin),
+*!        e(xmax), e(minobs); guards for degenerate (near-constant) regressors
+*!        and perfect-fit covariance scaling; generate() now validated at parse
+*!        time and confirmed before estimation; predict notes out-of-range
+*!        scoring.
+*! 1.2.1: guard against missing regression-point coordinates when the
+*!        regressor support is clustered or gapped (empty central interval);
+*!        method(connect) e(r2), e(rmse), and e(V) scaling now use raw
+*!        (uncentered) residual sums of squares; option abbreviations
+*!        (ord, noi, meth, part, nop, gen) now accepted as documented
+
+. 
+. // --- Excerpt 1: education example, default connect fit and model comparison
+. sjlog using nnsreg_ex_edu, replace
+
+. use texas_education, clear
+(Texas School District Operational Funding and Achievement (Simulated))
+
+. nnsreg staar_pass spend_pupil, order(3) method(connect) noplot
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9272
+Root MSE:             4.9380
+
+------------------------------------------------------------------------------
+             |           Heuristic reference
+  staar_pass | Coefficient  std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   6.414835   2.065966     3.11   0.002     2.345007    10.48466
+       knot1 |  -38.42267   12.13469    -3.17   0.002    -62.32728   -14.51806
+       knot2 |   33.71038   11.14115     3.03   0.003       11.763    55.65776
+       knot3 |   5.758648   1.765085     3.26   0.001     2.281537    9.235759
+       knot4 |   1.668066   7.469167     0.22   0.823    -13.04574    16.38187
+       knot5 |   6.868115   13.09004     0.52   0.600    -18.91846    32.65469
+       knot6 |  -10.78198   7.699945    -1.40   0.163     -25.9504    4.386446
+       knot7 |  -8.614286   1.875776    -4.59   0.000    -12.30945   -4.919122
+       knot8 |   9.589458    1.80015     5.33   0.000     6.043272    13.13564
+       knot9 |  -5.920695   1.735984    -3.41   0.001    -9.340479   -2.500911
+       _cons |    6.99154   11.78148     0.59   0.553    -16.21726    30.20034
+------------------------------------------------------------------------------
+note: connect-fit standard errors are heuristic references from a rescaled OLS 
+> spline covariance; they are not estimator-specific tests.
+
+. estimates store edu_connect
+
+. quietly nnsreg staar_pass spend_pupil, order(3) method(ols) noplot
+
+. estimates store edu_ols
+
+. estimates table edu_connect edu_ols, b(%9.3f) se(%9.3f) stats(r2 rmse N)
+
+--------------------------------------
+    Variable | edu_con~t    edu_ols   
+-------------+------------------------
+ spend_pupil |     6.415       1.597  
+             |     2.066       1.723  
+       knot1 |   -38.423      -9.011  
+             |    12.135      10.122  
+       knot2 |    33.710      10.028  
+             |    11.141       9.293  
+       knot3 |     5.759       4.362  
+             |     1.765       1.472  
+       knot4 |     1.668       5.818  
+             |     7.469       6.230  
+       knot5 |     6.868      -3.221  
+             |    13.090      10.919  
+       knot6 |   -10.782      -4.405  
+             |     7.700       6.423  
+       knot7 |    -8.614      -4.087  
+             |     1.876       1.565  
+       knot8 |     9.589      -0.175  
+             |     1.800       1.502  
+       knot9 |    -5.921      -0.842  
+             |     1.736       1.448  
+       _cons |     6.992      32.086  
+             |    11.781       9.828  
+-------------+------------------------
+          r2 |     0.927       0.949  
+        rmse |     4.938       4.119  
+           N |       250         250  
+--------------------------------------
+                          Legend: b/se
+
+. sjlog close, replace
+
+. 
+. // --- Excerpt 2: education plateau test via lincom on the stored spline
+. sjlog using nnsreg_ex_plateau, replace
+
+. estimates restore edu_ols
+(results edu_ols are active now)
+
+. lincom spend_pupil + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 ///
+>     + knot7 + knot8 + knot9
+
+ ( 1)  spend_pupil + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 +
+       knot8 + knot9 = 0
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |   .0645397   .7393695     0.09   0.931    -1.391973    1.521053
+------------------------------------------------------------------------------
+
+. sjlog close, replace
+
+. 
+. // --- Excerpt 3: water example, slope contrast across the threshold
+. sjlog using nnsreg_ex_water, replace
+
+. use texas_water, clear
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+
+. quietly nnsreg water_loss pipe_age, order(3) method(ols) noplot
+
+. lincom pipe_age
+
+ ( 1)  pipe_age = 0
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |  -.1292191   .1497085    -0.86   0.389    -.4238763    .1654382
+------------------------------------------------------------------------------
+
+. lincom pipe_age + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 ///
+>     + knot7 + knot8 + knot9
+
+ ( 1)  pipe_age + knot1 + knot2 + knot3 + knot4 + knot5 + knot6 + knot7 + knot8
+       + knot9 = 0
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+         (1) |   1.209637   .0946187    12.78   0.000     1.023408    1.395866
+------------------------------------------------------------------------------
+
+. sjlog close, replace
+
+. 
+. // --- Excerpt 4: the slopes option reports every segment at once
+. sjlog using nnsreg_ex_slopes, replace
+
+. use texas_education, clear
+(Texas School District Operational Funding and Achievement (Simulated))
+
+. nnsreg staar_pass spend_pupil, order(2) method(ols) noplot slopes
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable: spend_pupil
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        250
+R-squared:            0.9434
+Root MSE:             4.2994
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   .3637342   .4431866     0.82   0.413    -.5092077    1.236676
+       knot1 |    7.75409   .6855804    11.31   0.000     6.403706    9.104473
+       knot2 |  -4.984399   .5169886    -9.64   0.000    -6.002708    -3.96609
+       knot3 |  -3.463223    .599266    -5.78   0.000    -4.643594   -2.282852
+       _cons |   39.18212    3.16834    12.37   0.000     32.94146    45.42278
+------------------------------------------------------------------------------
+
+Per-segment slopes (cumulative), conditional on the NNS knots
+-------------------------------------------------------------------------
+ segment                 x range       slope   std. err.       n
+-------------------------------------------------------------------------
+       1        5.01 to     8.28      0.3637      0.4432      58
+       2        8.28 to     11.8      8.1178      0.3223      60
+       3        11.8 to     16.4      3.1334      0.2532      67
+       4        16.4 to       20     -0.3298      0.4047      65
+-------------------------------------------------------------------------
+Standard errors are conditional on the data-derived knot locations.
+
+. sjlog close, replace
+
+. 
+. if "`return_to'" != "." {
+.     cd "`return_to'"
+/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My D
+> rive/NNS-stata-public
+.     foreach f in nnsreg_ex_edu nnsreg_ex_plateau nnsreg_ex_water nnsreg_ex_sl
+> opes {
+  2.         copy "work/packet_stage/`f'.log.tex" "`outdir'/`f'.log.tex", repla
+> ce
+  3.     }
+. }
+
+. 
+. di "sjlog excerpts written."
+sjlog excerpts written.
+
+. 
+end of do-file

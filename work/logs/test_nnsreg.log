@@ -1,0 +1,1195 @@
+
+  ___  ____  ____  ____  ____ ®
+ /__    /   ____/   /   ____/      StataNow 19.5
+___/   /   /___/   /   /___/       MP—Parallel Edition
+
+ Statistics and Data Science       Copyright 1985-2025 StataCorp LLC
+                                   StataCorp
+                                   4905 Lakeway Drive
+                                   College Station, Texas 77845 USA
+                                   800-782-8272        https://www.stata.com
+                                   979-696-4600        service@stata.com
+
+Stata license: 4-user 4-core network, expiring  6 May 2027
+Serial number: 501909369296
+  Licensed to: Eric Booth
+               Texas 2036
+
+Notes:
+      1. Stata is running in batch mode.
+      2. Unicode is supported; see help unicode_advice.
+      3. More than 2 billion observations are allowed; see help obs_advice.
+      4. Maximum number of variables is set to 5,000 but can be increased;
+          see help set_maxvar.
+
+
+Running /Users/ericbooth/Documents/Stata/ado/personal/profile.do ...
+-------------------------------------------------------------------------------
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.boot
+> h@texas2036.org/Shared drives/Data and Research Team//_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+
+Click [here] for other links
+-------------------------------------------------------------------------------
+
+. do examples/test_nnsreg.do 
+
+. *! version 1.2.0  02jul2026
+. *! Replication, comparison, and testing script for nnsreg package
+. clear all
+
+. macro drop _all
+
+. set more off
+
+. set scheme s1color
+
+. 
+. adopath + "code"
+  [1]  (BASE)      "/Applications/StataNow/ado/base/"
+  [2]  (SITE)      "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.boot
+> h@texas2036.org/Shared drives/Data and Research Team//_codeshare/"
+  [3]              "."
+  [4]  (PERSONAL)  "/Users/ericbooth/Documents/Stata/ado/personal/"
+  [5]  (PLUS)      "/Users/ericbooth/Library/Application Support/Stata/ado/plus
+> /"
+  [6]  (OLDPLACE)  "~/ado/"
+  [7]              "code"
+
+. cap mkdir "manuscript"
+
+. cap mkdir "examples"
+
+. 
+. which nnsreg
+code/nnsreg.ado
+*! version 1.2.0  02jul2026
+*! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+
+. which nnsreg_p
+code/nnsreg_p.ado
+*! version 1.0.0  02jul2026
+*! nnsreg_p: Post-estimation predict program for nnsreg
+*! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com
+> )
+
+. 
+. capture which coefplot
+
+. if _rc != 0 {
+.     di "coefplot not found. Installing from SSC..."
+.     ssc install coefplot, replace
+. }
+
+. 
+. do "examples/simulated_data.do"
+
+. *! version 1.0.0  02jul2026
+. *! Simulated data generator for nnsreg Stata Journal manuscript
+. clear all
+
+. set seed 2036 // Texas 2036 seed for reproducibility
+
+. 
+. // 1. Simulate Texas Education Dataset (School Spending vs STAAR passing rate
+> s)
+. set obs 250
+Number of observations (_N) was 0, now 250.
+
+. gen district_id = _n
+
+. 
+. // Spend per pupil in thousands of dollars (range $5k to $20k)
+. gen spend_pupil = 5 + 15 * runiform()
+
+. 
+. // STAAR passing rate: S-curve (inflection around $11k, plateauing around 85-
+> 90%)
+. gen true_staar = 40 + 45 / (1 + exp(-0.8 * (spend_pupil - 11)))
+
+. gen staar_pass = true_staar + rnormal(0, 4)
+
+. 
+. // Clamp between 0 and 100
+. replace staar_pass = 100 if staar_pass > 100
+(0 real changes made)
+
+. replace staar_pass = 0 if staar_pass < 0
+(0 real changes made)
+
+. 
+. label variable spend_pupil "Per-Pupil Operational Spending ($ Thousands)"
+
+. label variable staar_pass "STAAR Math Passing Rate (%)"
+
+. label data "Texas School District Operational Funding and Achievement (Simula
+> ted)"
+
+. 
+. save "examples/texas_education.dta", replace
+file examples/texas_education.dta saved
+
+. 
+. // 2. Simulate Texas Water Infrastructure Dataset (Infrastructure Age vs Wate
+> r Loss)
+. clear
+
+. set obs 300
+Number of observations (_N) was 0, now 300.
+
+. gen system_id = _n
+
+. 
+. // Average pipe age in years (range 0 to 80 years)
+. gen pipe_age = 80 * runiform()
+
+. 
+. // Annual water loss rate in percent (stable below 35 years, spikes quadratic
+> ally after)
+. gen true_loss = 8 if pipe_age <= 35
+(167 missing values generated)
+
+. replace true_loss = 8 + 0.4 * (pipe_age - 35) + 0.01 * (pipe_age - 35)^2 if p
+> ipe_age > 35
+(167 real changes made)
+
+. gen water_loss = true_loss + rnormal(0, 2.5)
+
+. 
+. // Clamp between 0 and 100
+. replace water_loss = 100 if water_loss > 100
+(0 real changes made)
+
+. replace water_loss = 0 if water_loss < 0
+(0 real changes made)
+
+. 
+. label variable pipe_age "Average Water Pipe Age (Years)"
+
+. label variable water_loss "Annual Water Loss Rate (%)"
+
+. label data "Texas Municipal Water Infrastructure and Water Loss (Simulated)"
+
+. 
+. save "examples/texas_water.dta", replace
+file examples/texas_water.dta saved
+
+. 
+. // 3. Simulate clustered peak/dip data inspired by NNS segmentation examples
+. clear
+
+. set obs 260
+Number of observations (_N) was 0, now 260.
+
+. gen unit_id = _n
+
+. gen mix = runiform()
+
+. gen cluster_score = cond(mix < .45, rnormal(22, 3), ///
+>     cond(mix < .75, rnormal(36, 2.2), rnormal(58, 4)))
+
+. replace cluster_score = max(5, min(70, cluster_score))
+(0 real changes made)
+
+. 
+. // Three dense regions with a local peak, sharp dip, and partial recovery.
+. gen true_index = 18 + .18 * cluster_score ///
+>     + 10 * exp(-((cluster_score - 24)^2) / 35) ///
+>     - 16 * exp(-((cluster_score - 35)^2) / 18) ///
+>     + 8 * exp(-((cluster_score - 58)^2) / 50)
+
+. gen outcome_index = true_index + rnormal(0, 1.2)
+
+. 
+. label variable cluster_score "Clustered Index Score"
+
+. label variable outcome_index "Outcome Index"
+
+. label data "Clustered peak/dip benchmark data (Simulated)"
+
+. 
+. save "examples/clustered_peak_dip.dta", replace
+file examples/clustered_peak_dip.dta saved
+
+. 
+. di "Data simulation complete. Files saved in examples/ subfolder."
+Data simulation complete. Files saved in examples/ subfolder.
+
+. 
+end of do-file
+
+. 
+. capture program drop post_metrics
+
+. program define post_metrics
+  1.     syntax, Handle(name) Example(string) Model(string) ///
+>         Fitvar(name) Yvar(name) Truevar(name)
+  2. 
+.     tempvar res_obs res_true tss
+  3.     quietly gen double `res_obs' = (`yvar' - `fitvar')^2
+  4.     quietly gen double `res_true' = (`truevar' - `fitvar')^2
+  5.     quietly summarize `res_obs', meanonly
+  6.     local rss = r(sum)
+  7.     local rmse_obs = sqrt(r(mean))
+  8.     quietly summarize `res_true', meanonly
+  9.     local rmse_true = sqrt(r(mean))
+ 10.     quietly summarize `yvar', meanonly
+ 11.     local ybar = r(mean)
+ 12.     quietly gen double `tss' = (`yvar' - `ybar')^2
+ 13.     quietly summarize `tss', meanonly
+ 14.     local r2 = 1 - (`rss' / r(sum))
+ 15. 
+.     post `handle' ("`example'") ("`model'") ///
+>         (`r2') (`rmse_obs') (`rmse_true')
+ 16. end
+
+. 
+. tempname diag
+
+. postfile `diag' str14 example str30 model double r2 rmse_obs rmse_true using 
+> ///
+>     "examples/model_diagnostics.dta", replace
+
+. 
+. // -------------------------------------------------------------------------
+. // 1. Education example: S-shaped diminishing returns
+. // -------------------------------------------------------------------------
+. use "examples/texas_education.dta", clear
+(Texas School District Operational Funding and Achievement (Simulated))
+
+. 
+. di "=== Education example: diminishing returns ==="
+=== Education example: diminishing returns ===
+
+. 
+. regress staar_pass spend_pupil
+
+      Source |       SS           df       MS      Number of obs   =       250
+-------------+----------------------------------   F(1, 248)       =   1569.26
+       Model |  69131.6852         1  69131.6852   Prob > F        =    0.0000
+    Residual |  10925.3186       248  44.0537042   R-squared       =    0.8635
+-------------+----------------------------------   Adj R-squared   =    0.8630
+       Total |  80057.0038       249  321.514072   Root MSE        =    6.6373
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   3.767062   .0950945    39.61   0.000     3.579766    3.954358
+       _cons |   19.07044   1.254547    15.20   0.000     16.59951    21.54136
+------------------------------------------------------------------------------
+
+. estimates store edu_linear
+
+. predict double fit_edu_linear, xb
+
+. post_metrics, handle(`diag') example("education") model("Linear regression") 
+> ///
+>     fitvar(fit_edu_linear) yvar(staar_pass) truevar(true_staar)
+
+. 
+. quietly npregress kernel staar_pass spend_pupil
+
+. predict double fit_edu_np, mean
+
+. post_metrics, handle(`diag') example("education") model("npregress kernel") /
+> //
+>     fitvar(fit_edu_np) yvar(staar_pass) truevar(true_staar)
+
+. 
+. nnsreg staar_pass spend_pupil, order(2) method(connect) partition(xy) ///
+>     noplot generate(fit_edu_conn_o2)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable:  spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        250
+R-squared:            0.9256
+Root MSE:             4.8902
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   2.291839    .504094     4.55   0.000     1.298928     3.28475
+       knot1 |   4.373882   .7798002     5.61   0.000     2.837914     5.90985
+       knot2 |  -4.287708   .5880386    -7.29   0.000    -5.445964   -3.129452
+       knot3 |  -1.647963   .6816235    -2.42   0.016    -2.990552   -.3053729
+       _cons |   28.81106   3.603767     7.99   0.000     21.71275    35.90938
+------------------------------------------------------------------------------
+
+. estimates store edu_conn_o2
+
+. post_metrics, handle(`diag') example("education") model("NNS connect xy o2") 
+> ///
+>     fitvar(fit_edu_conn_o2) yvar(staar_pass) truevar(true_staar)
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy) ///
+>     noplot generate(fit_edu_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable:  spend_pupil
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9294
+Root MSE:             4.7638
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   6.414835     1.9931     3.22   0.001     2.488548    10.34112
+       knot1 |  -38.42267   11.70671    -3.28   0.001    -61.48418   -15.36117
+       knot2 |   33.71038    10.7482     3.14   0.002     12.53707    54.88369
+       knot3 |   5.758648   1.702831     3.38   0.001     2.404173    9.113123
+       knot4 |   1.668066   7.205733     0.23   0.817    -12.52679    15.86292
+       knot5 |   6.868115   12.62836     0.54   0.587    -18.00898    31.74521
+       knot6 |  -10.78198   7.428372    -1.45   0.148    -25.41542    3.851462
+       knot7 |  -8.614286   1.809618    -4.76   0.000    -12.17912   -5.049449
+       knot8 |   9.589458    1.73666     5.52   0.000     6.168344    13.01057
+       knot9 |  -5.920695   1.674757    -3.54   0.000    -9.219864   -2.621525
+       _cons |    6.99154   11.36595     0.62   0.539    -15.39869    29.38177
+------------------------------------------------------------------------------
+
+. estimates store edu_conn_o3
+
+. post_metrics, handle(`diag') example("education") model("NNS connect xy o3") 
+> ///
+>     fitvar(fit_edu_conn_o3) yvar(staar_pass) truevar(true_staar)
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(connect) partition(xy) ///
+>     noise(median) noplot generate(fit_edu_conn_med_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable:  spend_pupil
+Method:               connect
+Noise reduction:      median
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9379
+Root MSE:             4.4687
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   .8447739    1.21525     0.70   0.488    -1.549094    3.238642
+       knot1 |   9.439252   3.786442     2.49   0.013     1.980505      16.898
+       knot2 |  -12.10569   3.791079    -3.19   0.002    -19.57357   -4.637809
+       knot3 |   10.48505   1.835996     5.71   0.000     6.868406     14.1017
+       knot4 |  -1.993916   1.143194    -1.74   0.082    -4.245843    .2580114
+       knot5 |   -8.35583   1.044019    -8.00   0.000     -10.4124   -6.299262
+       knot6 |    7.24272    1.77575     4.08   0.000     3.744748    10.74069
+       knot7 |  -5.553602   1.918429    -2.89   0.004    -9.332631   -1.774572
+       _cons |   35.55025   7.258458     4.90   0.000     21.25213    49.84837
+------------------------------------------------------------------------------
+
+. estimates store edu_conn_med_o3
+
+. post_metrics, handle(`diag') example("education") model("NNS median xy o3") /
+> //
+>     fitvar(fit_edu_conn_med_o3) yvar(staar_pass) truevar(true_staar)
+
+. 
+. nnsreg staar_pass spend_pupil, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_edu_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   staar_pass
+Independent variable:  spend_pupil
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        250
+R-squared:            0.9494
+Root MSE:             4.1190
+
+------------------------------------------------------------------------------
+  staar_pass | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+ spend_pupil |   1.596661   1.723323     0.93   0.355     -1.79818    4.991503
+       knot1 |  -9.011045   10.12214    -0.89   0.374    -28.95104    10.92895
+       knot2 |   10.02821   9.293371     1.08   0.282    -8.279165    28.33559
+       knot3 |   4.362331   1.472343     2.96   0.003     1.461904    7.262758
+       knot4 |   5.818051   6.230395     0.93   0.351    -6.455449    18.09155
+       knot5 |  -3.221368   10.91903    -0.30   0.768     -24.7312    18.28847
+       knot6 |  -4.405113   6.422898    -0.69   0.493    -17.05783    8.247607
+       knot7 |  -4.086812   1.564676    -2.61   0.010    -7.169128   -1.004496
+       knot8 |   -.174616   1.501593    -0.12   0.908    -3.132662     2.78343
+       knot9 |  -.8417628   1.448069    -0.58   0.562     -3.69437    2.010845
+       _cons |   32.08628   9.827502     3.26   0.001     12.72669    51.44586
+------------------------------------------------------------------------------
+
+. estimates store edu_ols_o3
+
+. post_metrics, handle(`diag') example("education") model("NNS OLS xy o3") ///
+>     fitvar(fit_edu_ols_o3) yvar(staar_pass) truevar(true_staar)
+
+. 
+. twoway ///
+>     (scatter staar_pass spend_pupil, mcolor("108 122 141%55") msymbol(Oh) msi
+> ze(tiny)) ///
+>     (line true_staar spend_pupil, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_edu_linear spend_pupil, sort lcolor("43 108 176") lpattern(shor
+> tdash) lwidth(medthin)) ///
+>     (line fit_edu_np spend_pupil, sort lcolor("27 45 85") lpattern(dash) lwid
+> th(medthin)) ///
+>     (line fit_edu_conn_o3 spend_pupil, sort lcolor("212 69 0") lwidth(medthic
+> k)) ///
+>     (line fit_edu_ols_o3 spend_pupil, sort lcolor("0 109 44") lpattern(longda
+> sh) lwidth(medthin)), ///
+>     title("A. Fit comparison", size(medsmall)) ///
+>     ytitle("STAAR Math Passing Rate (%)", size(small)) ///
+>     xtitle("Per-Pupil Operational Spending ($ Thousands)", size(small)) ///
+>     legend(order(2 "True curve" 3 "Linear" 4 "npregress" 5 "NNS connect" 6 "N
+> NS OLS") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(edu_fit_compare, replace)
+
+. graph save "manuscript/fig_edu_fit_compare.gph", replace
+file manuscript/fig_edu_fit_compare.gph saved
+
+. 
+. coefplot ///
+>     (edu_linear, label("Linear")) ///
+>     (edu_conn_o3, label("NNS connect")) ///
+>     (edu_ols_o3, label("NNS OLS")), ///
+>     drop(_cons) title("B. Stored coefficients", size(medsmall)) ///
+>     xtitle("Spline slope component", size(small)) ///
+>     legend(rows(1) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(edu_coef_compare, replace)
+
+. graph save "manuscript/fig_edu_coef_compare.gph", replace
+file manuscript/fig_edu_coef_compare.gph saved
+
+. 
+. graph combine "manuscript/fig_edu_fit_compare.gph" ///
+>     "manuscript/fig_edu_coef_compare.gph", cols(2) ///
+>     title("Education example: fit and postestimation comparison", size(medsma
+> ll)) ///
+>     graphregion(color(white)) imargin(tiny) xsize(9) ysize(4.6) ///
+>     name(edu_combined, replace)
+
+. graph export "manuscript/fig_edu_combined_compare.pdf", replace
+file manuscript/fig_edu_combined_compare.pdf saved as PDF format
+
+. graph export "manuscript/fig_edu_combined_compare.png", replace width(2400)
+file manuscript/fig_edu_combined_compare.png written in PNG format
+
+. 
+. twoway ///
+>     (scatter staar_pass spend_pupil, mcolor("108 122 141%45") msymbol(Oh) msi
+> ze(tiny)) ///
+>     (line true_staar spend_pupil, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_edu_conn_o2 spend_pupil, sort lcolor("43 108 176") lpattern(das
+> h) lwidth(medthin)) ///
+>     (line fit_edu_conn_o3 spend_pupil, sort lcolor("212 69 0") lwidth(medthic
+> k)) ///
+>     (line fit_edu_conn_med_o3 spend_pupil, sort lcolor("0 109 44") lpattern(l
+> ongdash) lwidth(medthin)), ///
+>     title("Education sensitivity: order and center", size(medsmall)) ///
+>     ytitle("STAAR Math Passing Rate (%)", size(small)) ///
+>     xtitle("Per-Pupil Operational Spending ($ Thousands)", size(small)) ///
+>     legend(order(2 "True curve" 3 "order(2), mean" 4 "order(3), mean" 5 "orde
+> r(3), median") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(edu_sensitivity, replace)
+
+. graph export "manuscript/fig_edu_sensitivity.pdf", replace
+file manuscript/fig_edu_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_edu_sensitivity.png", replace width(1800)
+file manuscript/fig_edu_sensitivity.png written in PNG format
+
+. 
+. // -------------------------------------------------------------------------
+. // 2. Water example: threshold behavior
+. // -------------------------------------------------------------------------
+. use "examples/texas_water.dta", clear
+(Texas Municipal Water Infrastructure and Water Loss (Simulated))
+
+. 
+. di "=== Water example: threshold behavior ==="
+=== Water example: threshold behavior ===
+
+. 
+. regress water_loss pipe_age
+
+      Source |       SS           df       MS      Number of obs   =       300
+-------------+----------------------------------   F(1, 298)       =   1011.70
+       Model |  30133.6553         1  30133.6553   Prob > F        =    0.0000
+    Residual |  8875.99985       298  29.7852344   R-squared       =    0.7725
+-------------+----------------------------------   Adj R-squared   =    0.7717
+       Total |  39009.6552       299  130.467074   Root MSE        =    5.4576
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .4373631   .0137504    31.81   0.000     .4103029    .4644234
+       _cons |  -.6893824   .6275298    -1.10   0.273    -1.924334    .5455689
+------------------------------------------------------------------------------
+
+. estimates store water_linear
+
+. predict double fit_water_linear, xb
+
+. post_metrics, handle(`diag') example("water") model("Linear regression") ///
+>     fitvar(fit_water_linear) yvar(water_loss) truevar(true_loss)
+
+. 
+. quietly npregress kernel water_loss pipe_age
+
+. predict double fit_water_np, mean
+
+. post_metrics, handle(`diag') example("water") model("npregress kernel") ///
+>     fitvar(fit_water_np) yvar(water_loss) truevar(true_loss)
+
+. 
+. nnsreg water_loss pipe_age, order(2) method(connect) partition(xy) ///
+>     noplot generate(fit_water_conn_o2)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                2
+Number of obs:        300
+R-squared:            0.9529
+Root MSE:             2.4795
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.0148205   .0384475    -0.39   0.700    -.0904866    .0608457
+       knot1 |   .2032467    .054209     3.75   0.000     .0965613     .309932
+       knot2 |    .657811   .0483407    13.61   0.000     .5626746    .7529473
+       knot3 |   .1682894   .0867379     1.94   0.053    -.0024141    .3389929
+       _cons |   8.355363   .5438412    15.36   0.000     7.285063    9.425663
+------------------------------------------------------------------------------
+
+. estimates store water_conn_o2
+
+. post_metrics, handle(`diag') example("water") model("NNS connect xy o2") ///
+>     fitvar(fit_water_conn_o2) yvar(water_loss) truevar(true_loss)
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) ///
+>     noplot generate(fit_water_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9294
+Root MSE:             3.0344
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .0861409   .2219984     0.39   0.698    -.3507977    .5230796
+       knot1 |   -16.2525   6.230598    -2.61   0.010     -28.5156   -3.989393
+       knot2 |   16.15814   6.084856     2.66   0.008      4.18189     28.1344
+       knot3 |    .706108   .1558647     4.53   0.000     .3993342    1.012882
+       knot4 |  -2.071645   .4384428    -4.73   0.000    -2.934591   -1.208699
+       knot5 |   2.439061   .5337381     4.57   0.000     1.388555    3.489568
+       knot6 |   .2821719   .3608054     0.78   0.435    -.4279677    .9923114
+       knot7 |  -2.290321   .4260193    -5.38   0.000    -3.128815   -1.451827
+       knot8 |   2.049209   .3825173     5.36   0.000     1.296336    2.802081
+       knot9 |   .0676376   .2284458     0.30   0.767    -.3819909     .517266
+       _cons |   8.991754   1.143016     7.87   0.000     6.742063    11.24145
+------------------------------------------------------------------------------
+
+. estimates store water_conn_o3
+
+. post_metrics, handle(`diag') example("water") model("NNS connect xy o3") ///
+>     fitvar(fit_water_conn_o3) yvar(water_loss) truevar(true_loss)
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(connect) partition(xy) ///
+>     noise(median) noplot generate(fit_water_conn_med_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               connect
+Noise reduction:      median
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9441
+Root MSE:             2.6999
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |   .4563667   .4517763     1.01   0.313    -.4328748    1.345608
+       knot1 |  -1.886985   1.309951    -1.44   0.151    -4.465391    .6914213
+       knot2 |   .7381964   1.176711     0.63   0.531    -1.577951    3.054344
+       knot3 |   1.043579   .4238093     2.46   0.014      .209386    1.877773
+       knot4 |   .5651892   .5155151     1.10   0.274    -.4495107    1.579889
+       knot5 |  -2.520291   .9230875    -2.73   0.007    -4.337225   -.7033572
+       knot6 |    .643047   1.466161     0.44   0.661    -2.242831    3.528925
+       knot7 |   .8372578   1.073524     0.78   0.436    -1.275783    2.950298
+       knot8 |   .7182795   .2897596     2.48   0.014     .1479391     1.28862
+       knot9 |   .8485315   .5807669     1.46   0.145    -.2946051    1.991668
+      knot10 |  -.6598988   .5669957    -1.16   0.245    -1.775929    .4561316
+      knot11 |  -.9167438   .3769082    -2.43   0.016    -1.658621   -.1748668
+      knot12 |   1.214578   .3466481     3.50   0.001     .5322623    1.896893
+      knot13 |   .1520405   .1788371     0.85   0.396    -.1999685    .5040496
+       _cons |   8.963887   1.321308     6.78   0.000     6.363126    11.56465
+------------------------------------------------------------------------------
+
+. estimates store water_conn_med_o3
+
+. post_metrics, handle(`diag') example("water") model("NNS median xy o3") ///
+>     fitvar(fit_water_conn_med_o3) yvar(water_loss) truevar(true_loss)
+
+. 
+. nnsreg water_loss pipe_age, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_water_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   water_loss
+Independent variable:  pipe_age
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        300
+R-squared:            0.9586
+Root MSE:             2.3637
+
+------------------------------------------------------------------------------
+  water_loss | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+    pipe_age |  -.2771159   .1729283    -1.60   0.110    -.6174744    .0632427
+       knot1 |   5.750165   4.853398     1.18   0.237    -3.802325    15.30266
+       knot2 |  -5.467069   4.739871    -1.15   0.250    -14.79611    3.861976
+       knot3 |   .0010077   .1214126     0.01   0.993    -.2379574    .2399728
+       knot4 |   .7846341   .3415302     2.30   0.022     .1124322    1.456836
+       knot5 |  -.3411592   .4157617    -0.82   0.413    -1.159464    .4771455
+       knot6 |   .2781807   .2810537     0.99   0.323     -.274991    .8313523
+       knot7 |  -.2000422   .3318528    -0.60   0.547     -.853197    .4531125
+       knot8 |   .4977472   .2979664     1.67   0.096    -.0887121    1.084207
+       knot9 |   .1723862   .1779506     0.97   0.333    -.1778572    .5226297
+       _cons |   9.234832    .890366    10.37   0.000     7.482408    10.98726
+------------------------------------------------------------------------------
+
+. estimates store water_ols_o3
+
+. post_metrics, handle(`diag') example("water") model("NNS OLS xy o3") ///
+>     fitvar(fit_water_ols_o3) yvar(water_loss) truevar(true_loss)
+
+. 
+. twoway ///
+>     (scatter water_loss pipe_age, mcolor("108 122 141%55") msymbol(Oh) msize(
+> tiny)) ///
+>     (line true_loss pipe_age, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_water_linear pipe_age, sort lcolor("43 108 176") lpattern(short
+> dash) lwidth(medthin)) ///
+>     (line fit_water_np pipe_age, sort lcolor("27 45 85") lpattern(dash) lwidt
+> h(medthin)) ///
+>     (line fit_water_conn_o3 pipe_age, sort lcolor("212 69 0") lwidth(medthick
+> )) ///
+>     (line fit_water_ols_o3 pipe_age, sort lcolor("0 109 44") lpattern(longdas
+> h) lwidth(medthin)), ///
+>     title("A. Fit comparison", size(medsmall)) ///
+>     ytitle("Annual Water Loss Rate (%)", size(small)) ///
+>     xtitle("Average Water Pipe Age (Years)", size(small)) ///
+>     legend(order(2 "True curve" 3 "Linear" 4 "npregress" 5 "NNS connect" 6 "N
+> NS OLS") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(water_fit_compare, replace)
+
+. graph save "manuscript/fig_water_fit_compare.gph", replace
+file manuscript/fig_water_fit_compare.gph saved
+
+. 
+. coefplot ///
+>     (water_linear, label("Linear")) ///
+>     (water_conn_o3, label("NNS connect")) ///
+>     (water_ols_o3, label("NNS OLS")), ///
+>     drop(_cons) title("B. Stored coefficients", size(medsmall)) ///
+>     xtitle("Spline slope component", size(small)) ///
+>     legend(rows(1) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(water_coef_compare, replace)
+
+. graph save "manuscript/fig_water_coef_compare.gph", replace
+file manuscript/fig_water_coef_compare.gph saved
+
+. 
+. graph combine "manuscript/fig_water_fit_compare.gph" ///
+>     "manuscript/fig_water_coef_compare.gph", cols(2) ///
+>     title("Water example: fit and postestimation comparison", size(medsmall))
+>  ///
+>     graphregion(color(white)) imargin(tiny) xsize(9) ysize(4.6) ///
+>     name(water_combined, replace)
+
+. graph export "manuscript/fig_water_combined_compare.pdf", replace
+file manuscript/fig_water_combined_compare.pdf saved as PDF format
+
+. graph export "manuscript/fig_water_combined_compare.png", replace width(2400)
+file manuscript/fig_water_combined_compare.png written in PNG format
+
+. 
+. twoway ///
+>     (scatter water_loss pipe_age, mcolor("108 122 141%45") msymbol(Oh) msize(
+> tiny)) ///
+>     (line true_loss pipe_age, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_water_conn_o2 pipe_age, sort lcolor("43 108 176") lpattern(dash
+> ) lwidth(medthin)) ///
+>     (line fit_water_conn_o3 pipe_age, sort lcolor("212 69 0") lwidth(medthick
+> )) ///
+>     (line fit_water_conn_med_o3 pipe_age, sort lcolor("0 109 44") lpattern(lo
+> ngdash) lwidth(medthin)), ///
+>     title("Water sensitivity: order and center", size(medsmall)) ///
+>     ytitle("Annual Water Loss Rate (%)", size(small)) ///
+>     xtitle("Average Water Pipe Age (Years)", size(small)) ///
+>     legend(order(2 "True curve" 3 "order(2), mean" 4 "order(3), mean" 5 "orde
+> r(3), median") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(water_sensitivity, replace)
+
+. graph export "manuscript/fig_water_sensitivity.pdf", replace
+file manuscript/fig_water_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_water_sensitivity.png", replace width(1800)
+file manuscript/fig_water_sensitivity.png written in PNG format
+
+. 
+. // -------------------------------------------------------------------------
+. // 3. Clustered peak/dip benchmark: segmentation advantage case
+. // -------------------------------------------------------------------------
+. use "examples/clustered_peak_dip.dta", clear
+(Clustered peak/dip benchmark data (Simulated))
+
+. 
+. di "=== Clustered peak/dip benchmark ==="
+=== Clustered peak/dip benchmark ===
+
+. 
+. regress outcome_index cluster_score
+
+      Source |       SS           df       MS      Number of obs   =       260
+-------------+----------------------------------   F(1, 258)       =      9.90
+       Model |  892.314762         1  892.314762   Prob > F        =    0.0018
+    Residual |  23250.6217       258  90.1186888   R-squared       =    0.0370
+-------------+----------------------------------   Adj R-squared   =    0.0332
+       Total |  24142.9365       259   93.215971   Root MSE        =    9.4931
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   .1305761   .0414966     3.15   0.002      .048861    .2122912
+       _cons |   20.09065   1.587675    12.65   0.000      16.9642     23.2171
+------------------------------------------------------------------------------
+
+. estimates store cluster_linear
+
+. predict double fit_cluster_linear, xb
+
+. post_metrics, handle(`diag') example("clustered") model("Linear regression") 
+> ///
+>     fitvar(fit_cluster_linear) yvar(outcome_index) truevar(true_index)
+
+. 
+. quietly npregress kernel outcome_index cluster_score
+
+. predict double fit_cluster_np, mean
+
+. post_metrics, handle(`diag') example("clustered") model("npregress kernel") /
+> //
+>     fitvar(fit_cluster_np) yvar(outcome_index) truevar(true_index)
+
+. 
+. nnsreg outcome_index cluster_score, order(3) method(connect) partition(xy) //
+> /
+>     noplot generate(fit_cluster_conn_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable:  cluster_score
+Method:               connect
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        260
+R-squared:            0.9580
+Root MSE:             1.9788
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   1.120714   .3435739     3.26   0.001     .4439788     1.79745
+       knot1 |   .7115666   .5646065     1.26   0.209    -.4005354    1.823669
+       knot2 |  -1.299189   .5264169    -2.47   0.014    -2.336069   -.2623088
+       knot3 |   -1.96334   .3913636    -5.02   0.000    -2.734207   -1.192474
+       knot4 |  -.6935102   .3443562    -2.01   0.045    -1.371787   -.0152338
+       knot5 |   -14.2029   5.216118    -2.72   0.007    -24.47705    -3.92874
+       knot6 |   16.82894   6.535287     2.58   0.011     3.956428    29.70146
+       knot7 |   .8329994   2.819879     0.30   0.768      -4.7213    6.387299
+       knot8 |   2.250302   1.585729     1.42   0.157    -.8730993    5.373704
+       knot9 |  -2.312938    .646902    -3.58   0.000    -3.587137   -1.038739
+      knot10 |  -.2645972   .4882782    -0.54   0.588    -1.226356    .6971614
+      knot11 |  -.9356679   .3568239    -2.62   0.009    -1.638502   -.2328339
+      knot12 |  -.8161133    .390281    -2.09   0.038    -1.584847   -.0473792
+      knot13 |   .2797959   .7418032     0.38   0.706    -1.181329    1.740921
+       _cons |   4.923034   6.345917     0.78   0.439    -7.576481    17.42255
+------------------------------------------------------------------------------
+
+. estimates store cluster_conn_o3
+
+. post_metrics, handle(`diag') example("clustered") model("NNS connect xy o3") 
+> ///
+>     fitvar(fit_cluster_conn_o3) yvar(outcome_index) truevar(true_index)
+
+. 
+. nnsreg outcome_index cluster_score, order(3) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o3)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable:  cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                3
+Number of obs:        260
+R-squared:            0.9835
+Root MSE:             1.2766
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   1.290318   .2216519     5.82   0.000     .8537318    1.726905
+       knot1 |   .1462764   .3642479     0.40   0.688    -.5711806    .8637333
+       knot2 |  -.0167949   .3396105    -0.05   0.961    -.6857235    .6521338
+       knot3 |  -2.947591   .2524827   -11.67   0.000    -3.444904   -2.450277
+       knot4 |  -1.976888   .2221566    -8.90   0.000    -2.414468   -1.539307
+       knot5 |   8.505034   3.365105     2.53   0.012     1.876806    15.13326
+       knot6 |  -3.862767   4.216148    -0.92   0.360    -12.16729    4.441754
+       knot7 |   .7440717   1.819206     0.41   0.683    -2.839206     4.32735
+       knot8 |   2.349749   1.023011     2.30   0.022     .3347308    4.364768
+       knot9 |  -3.479716   .4173397    -8.34   0.000    -4.301747   -2.657684
+      knot10 |   .4560176   .3150058     1.45   0.149    -.1644474    1.076483
+      knot11 |  -.7387222   .2301999    -3.21   0.002    -1.192146   -.2852988
+      knot12 |  -1.403453   .2517843    -5.57   0.000    -1.899391   -.9075155
+      knot13 |   .4371105   .4785639     0.91   0.362     -.505514    1.379735
+       _cons |   1.885038   4.093979     0.46   0.646    -6.178848    9.948925
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o3
+
+. post_metrics, handle(`diag') example("clustered") model("NNS OLS xy o3") ///
+>     fitvar(fit_cluster_ols_o3) yvar(outcome_index) truevar(true_index)
+
+. 
+. nnsreg outcome_index cluster_score, order(4) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o4)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable:  cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                4
+Number of obs:        260
+R-squared:            0.9876
+Root MSE:             1.1617
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |    .848714   .4348906     1.95   0.052    -.0083493    1.705777
+       knot1 |   .4883385   1.024861     0.48   0.634    -1.531412    2.508089
+       knot2 |   2.268363   2.698766     0.84   0.402    -3.050248    7.586974
+       knot3 |  -1.606461   3.081166    -0.52   0.603    -7.678689    4.465767
+       knot4 |  -2.176678   3.392765    -0.64   0.522     -8.86299    4.509634
+       knot5 |   3.338294   8.821542     0.38   0.705    -14.04681     20.7234
+       knot6 |  -.9716296   8.330028    -0.12   0.907    -17.38808    15.44483
+       knot7 |  -71.03825   38.46235    -1.85   0.066    -146.8382    4.761663
+       knot8 |   71.16127   38.07552     1.87   0.063    -3.876297    146.1988
+       knot9 |  -8.957038   5.979216    -1.50   0.136    -20.74062    2.826539
+      knot10 |   7.804726   5.650968     1.38   0.169    -3.331955    18.94141
+      knot11 |  -1.668727   1.213896    -1.37   0.171     -4.06102    .7235651
+      knot12 |  -1.633284   1.009825    -1.62   0.107    -3.623403     .356835
+      knot13 |  -1.963866   .5414126    -3.63   0.000    -3.030858   -.8968732
+      knot14 |   1.262768   .7775381     1.62   0.106    -.2695702    2.795106
+      knot15 |   1.322237   1.763162     0.75   0.454    -2.152526    4.796999
+      knot16 |  -.1685952   5.175368    -0.03   0.974    -10.36798    10.03079
+      knot17 |   1.893056   4.712225     0.40   0.688    -7.393592     11.1797
+      knot18 |   16.84392   19.60827     0.86   0.391     -21.7992    55.48703
+      knot19 |  -29.43101   37.56457    -0.78   0.434    -103.4616    44.59961
+      knot20 |   14.46965   18.95416     0.76   0.446    -22.88437    51.82367
+      knot21 |  -9.168316   197.2372    -0.05   0.963    -397.8747    379.5381
+      knot22 |   10.41407   198.8902     0.05   0.958    -381.5501    402.3783
+      knot23 |  -1.659817   4.637367    -0.36   0.721    -10.79894    7.479303
+      knot24 |   4.642198   3.558037     1.30   0.193    -2.369826    11.65422
+      knot25 |  -4.931933   2.660125    -1.85   0.065    -10.17439    .3105251
+      knot26 |   2.386942   3.200908     0.75   0.457    -3.921268    8.695151
+      knot27 |  -2.864625   2.064314    -1.39   0.167    -6.932884    1.203633
+      knot28 |     .33081   .5215223     0.63   0.527    -.6969834    1.358603
+      knot29 |    1.51865   2.049536     0.74   0.459    -2.520486    5.557785
+      knot30 |  -3.583161    4.27606    -0.84   0.403    -12.01023    4.843911
+      knot31 |  -8.266013    45.2846    -0.18   0.855    -97.51092    80.97889
+      knot32 |   9.526355   44.04327     0.22   0.829     -77.2722    96.32491
+      knot33 |   1.122705   2.569632     0.44   0.663    -3.941412    6.186823
+      knot34 |  -1.732688   1.440612    -1.20   0.230    -4.571782    1.106407
+      knot35 |  -.6975396   1.022802    -0.68   0.496    -2.713232    1.318153
+      knot36 |  -.2510963   1.092438    -0.23   0.818    -2.404026    1.901833
+      knot37 |   .7499142   .5836791     1.28   0.200    -.4003751    1.900203
+       _cons |   9.237177   7.324369     1.26   0.209    -5.197368    23.67172
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o4
+
+. post_metrics, handle(`diag') example("clustered") model("NNS OLS xy o4") ///
+>     fitvar(fit_cluster_ols_o4) yvar(outcome_index) truevar(true_index)
+
+. 
+. nnsreg outcome_index cluster_score, order(5) method(ols) partition(xy) ///
+>     noplot generate(fit_cluster_ols_o5)
+
+Nonlinear Nonparametric Statistics (NNS) Regression
+Dependent variable:   outcome_index
+Independent variable:  cluster_score
+Method:               ols
+Noise reduction:      mean
+Partition:            xy
+Order:                5
+Number of obs:        260
+R-squared:            0.9887
+Root MSE:             1.1932
+
+------------------------------------------------------------------------------
+outcome_in~x | Coefficient  Std. err.      t    P>|t|     [95% conf. interval]
+-------------+----------------------------------------------------------------
+cluster_sc~e |   3.084494   3.154642     0.98   0.329     -3.13771    9.306698
+       knot1 |  -4.168523   6.414025    -0.65   0.517    -16.81952    8.482478
+       knot2 |   1.539692   3.943794     0.39   0.697    -6.239034    9.318418
+       knot3 |   4.345558   2.968166     1.46   0.145    -1.508841    10.19996
+       knot4 |   -4.84988   5.109871    -0.95   0.344    -14.92857    5.228812
+       knot5 |   6.808039   12.55052     0.54   0.588    -17.94656    31.56264
+       knot6 |  -4.822027   82.10949    -0.06   0.953    -166.7745    157.1304
+       knot7 |  -1.005825   73.25506    -0.01   0.989    -145.4939    143.4822
+       knot8 |  -3.631964   11.47635    -0.32   0.752    -26.26787    19.00395
+       knot9 |    6.68112   19.99851     0.33   0.739    -32.76387    46.12611
+      knot10 |  -1.607651   15.12853    -0.11   0.915    -31.44711    28.23181
+      knot11 |   -.307286   5.631683    -0.05   0.957     -11.4152    10.80063
+      knot12 |  -66.47295   50.36518    -1.32   0.188    -165.8131    32.86715
+      knot13 |   66.47929   50.12734     1.33   0.186    -32.39169    165.3503
+      knot14 |    2.15167   7.077063     0.30   0.761     -11.8071    16.11044
+      knot15 |  -4.561654   7.636442    -0.60   0.551    -19.62375    10.50044
+      knot16 |   1.093948   7.344324     0.15   0.882    -13.39197    15.57987
+      knot17 |  -29.66328    39.4851    -0.75   0.453    -107.5436    48.21699
+      knot18 |   32.41769   37.20675     0.87   0.385    -40.96877    105.8041
+      knot19 |   -17.4829   36.65402    -0.48   0.634    -89.77915    54.81335
+      knot20 |   13.17608   36.02832     0.37   0.715    -57.88606    84.23821
+      knot21 |   1.815715   2.981292     0.61   0.543    -4.064574    7.696004
+      knot22 |  -.8438911   22.03382    -0.04   0.969    -44.30331    42.61553
+      knot23 |  -2.394711   21.13175    -0.11   0.910     -44.0749    39.28547
+      knot24 |  -1.823879   .6977114    -2.61   0.010    -3.200042   -.4477154
+      knot25 |   1.205744   1.576863     0.76   0.445    -1.904455    4.315943
+      knot26 |  -2.460122   4.986305    -0.49   0.622    -12.29509    7.374848
+      knot27 |    4.79539   5.497065     0.87   0.384       -6.047    15.63778
+      knot28 |  -9.437979   9.241638    -1.02   0.308    -27.66615    8.790195
+      knot29 |   13.35309   12.86673     1.04   0.301     -12.0252    38.73138
+      knot30 |  -4.610822   6.711966    -0.69   0.493    -17.84948    8.627836
+      knot31 |   6.810683   17.06844     0.40   0.690    -26.85506    40.47642
+      knot32 |  -1.020264   37.90359    -0.03   0.979    -75.78117    73.74064
+      knot33 |   -1.29526   34.88035    -0.04   0.970    -70.09313    67.50262
+      knot34 |  -2.118561   15.17016    -0.14   0.889    -32.04014    27.80302
+      knot35 |  -6.043489   9.891367    -0.61   0.542    -25.55319    13.46621
+      knot36 |    15.2234    8.62573     1.76   0.079    -1.789964    32.23676
+      knot37 |  -15.68831   8.130817    -1.93   0.055    -31.72551    .3488857
+      knot38 |          0  (omitted)
+      knot39 |    11.9333   7.522802     1.59   0.114     -2.90465    26.77125
+      knot40 |  -16.56706   14.50174    -1.14   0.255    -45.17024    12.03612
+      knot41 |    14.3467   12.91361     1.11   0.268    -11.12406    39.81746
+      knot42 |   2.546753    5.38634     0.47   0.637    -8.077246    13.17075
+      knot43 |   -3.46679   5.919678    -0.59   0.559    -15.14274    8.209163
+      knot44 |  -10.15327   8.202003    -1.24   0.217    -26.33087    6.024331
+      knot45 |   13.36946   8.772008     1.52   0.129    -3.932414    30.67134
+      knot46 |  -6.338516   6.877673    -0.92   0.358    -19.90401    7.226982
+      knot47 |  -94.88022   196.5179    -0.48   0.630    -482.4914    292.7309
+      knot48 |   95.50778   193.8068     0.49   0.623    -286.7561    477.7717
+      knot49 |   .0458769   .9130527     0.05   0.960    -1.755025    1.846779
+      knot50 |  -8.836888   14.87699    -0.59   0.553    -38.18021    20.50643
+      knot51 |   9.643468    15.2956     0.63   0.529    -20.52552    39.81245
+      knot52 |  -.6482909    2.49646    -0.26   0.795    -5.572299    4.275717
+      knot53 |   1.634006   3.083127     0.53   0.597    -4.447144    7.715155
+      knot54 |  -3.649911   4.689074    -0.78   0.437    -12.89862    5.598802
+      knot55 |  -7.191099    46.5812    -0.15   0.877     -99.0677     84.6855
+      knot56 |   8.376395   45.29717     0.18   0.853    -80.96758    97.72037
+      knot57 |    1.58064   2.712149     0.58   0.561    -3.768793    6.930072
+      knot58 |  -2.550952   1.775928    -1.44   0.153    -6.053787    .9518819
+      knot59 |    3.84927    4.07136     0.95   0.346    -4.181066    11.87961
+      knot60 |  -5.764851   8.305877    -0.69   0.488    -22.14733    10.61763
+      knot61 |   4.199442   11.84504     0.35   0.723    -19.16368    27.56257
+      knot62 |  -2.749347   10.90959    -0.25   0.801    -24.26739     18.7687
+      knot63 |  -1.055157   5.139958    -0.21   0.838    -11.19319    9.082877
+      knot64 |   5.651303   9.273479     0.61   0.543    -12.63967    23.94228
+      knot65 |  -4.319788    8.08191    -0.53   0.594    -20.26052    11.62094
+      knot66 |  -.5293313   1.975202    -0.27   0.789    -4.425213     3.36655
+      knot67 |   1.044243   .8882606     1.18   0.241    -.7077587    2.796245
+       _cons |  -24.94828   48.25484    -0.52   0.606    -120.1259    70.22939
+------------------------------------------------------------------------------
+
+. estimates store cluster_ols_o5
+
+. post_metrics, handle(`diag') example("clustered") model("NNS OLS xy o5") ///
+>     fitvar(fit_cluster_ols_o5) yvar(outcome_index) truevar(true_index)
+
+. 
+. twoway ///
+>     (scatter outcome_index cluster_score, mcolor("108 122 141%55") msymbol(Oh
+> ) msize(tiny)) ///
+>     (line true_index cluster_score, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_cluster_linear cluster_score, sort lcolor("43 108 176") lpatter
+> n(shortdash) lwidth(medthin)) ///
+>     (line fit_cluster_np cluster_score, sort lcolor("27 45 85") lpattern(dash
+> ) lwidth(medthin)) ///
+>     (line fit_cluster_conn_o3 cluster_score, sort lcolor("212 69 0") lwidth(m
+> edthick)) ///
+>     (line fit_cluster_ols_o3 cluster_score, sort lcolor("0 109 44") lpattern(
+> longdash) lwidth(medthin)), ///
+>     title("A. Fit comparison", size(medsmall)) ///
+>     ytitle("Outcome Index", size(small)) ///
+>     xtitle("Clustered Index Score", size(small)) ///
+>     legend(order(2 "True curve" 3 "Linear" 4 "npregress" 5 "NNS connect" 6 "N
+> NS OLS") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(cluster_fit_compare, replace)
+
+. graph save "manuscript/fig_cluster_fit_compare.gph", replace
+(file manuscript/fig_cluster_fit_compare.gph not found)
+file manuscript/fig_cluster_fit_compare.gph saved
+
+. 
+. coefplot ///
+>     (cluster_linear, label("Linear")) ///
+>     (cluster_conn_o3, label("NNS connect")) ///
+>     (cluster_ols_o3, label("NNS OLS")), ///
+>     drop(_cons) title("B. Stored coefficients", size(medsmall)) ///
+>     xtitle("Spline slope component", size(small)) ///
+>     legend(rows(1) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(cluster_coef_compare, replace)
+
+. graph save "manuscript/fig_cluster_coef_compare.gph", replace
+(file manuscript/fig_cluster_coef_compare.gph not found)
+file manuscript/fig_cluster_coef_compare.gph saved
+
+. 
+. graph combine "manuscript/fig_cluster_fit_compare.gph" ///
+>     "manuscript/fig_cluster_coef_compare.gph", cols(2) ///
+>     title("Clustered benchmark: segmentation and postestimation comparison", 
+> size(medsmall)) ///
+>     graphregion(color(white)) imargin(tiny) xsize(9) ysize(4.6) ///
+>     name(cluster_combined, replace)
+
+. graph export "manuscript/fig_cluster_combined_compare.pdf", replace
+file manuscript/fig_cluster_combined_compare.pdf saved as PDF format
+
+. graph export "manuscript/fig_cluster_combined_compare.png", replace width(240
+> 0)
+(file manuscript/fig_cluster_combined_compare.png not found)
+file manuscript/fig_cluster_combined_compare.png written in PNG format
+
+. 
+. twoway ///
+>     (scatter outcome_index cluster_score, mcolor("108 122 141%45") msymbol(Oh
+> ) msize(tiny)) ///
+>     (line true_index cluster_score, sort lcolor(black) lwidth(medthin)) ///
+>     (line fit_cluster_np cluster_score, sort lcolor("27 45 85") lpattern(dash
+> ) lwidth(medthin)) ///
+>     (line fit_cluster_ols_o3 cluster_score, sort lcolor("212 69 0") lwidth(me
+> dthick)) ///
+>     (line fit_cluster_ols_o4 cluster_score, sort lcolor("43 108 176") lpatter
+> n(longdash) lwidth(medthin)) ///
+>     (line fit_cluster_ols_o5 cluster_score, sort lcolor("0 109 44") lpattern(
+> shortdash) lwidth(medthin)), ///
+>     title("Clustered benchmark sensitivity: order", size(medsmall)) ///
+>     ytitle("Outcome Index", size(small)) ///
+>     xtitle("Clustered Index Score", size(small)) ///
+>     legend(order(2 "True curve" 3 "npregress" 4 "NNS OLS o3" 5 "NNS OLS o4" 6
+>  "NNS OLS o5") ///
+>         rows(2) size(vsmall) position(6) region(lcolor(none))) ///
+>     graphregion(color("245 247 250")) name(cluster_sensitivity, replace)
+
+. graph export "manuscript/fig_cluster_sensitivity.pdf", replace
+file manuscript/fig_cluster_sensitivity.pdf saved as PDF format
+
+. graph export "manuscript/fig_cluster_sensitivity.png", replace width(1800)
+(file manuscript/fig_cluster_sensitivity.png not found)
+file manuscript/fig_cluster_sensitivity.png written in PNG format
+
+. 
+. postclose `diag'
+
+. 
+. use "examples/model_diagnostics.dta", clear
+
+. format r2 %6.3f
+
+. format rmse_obs rmse_true %6.3f
+
+. export delimited using "manuscript/table_model_diagnostics.csv", replace
+file manuscript/table_model_diagnostics.csv saved
+
+. list, sepby(example)
+
+     +-------------------------------------------------------------+
+     |   example               model      r2   rmse_obs   rmse_t~e |
+     |-------------------------------------------------------------|
+  1. | education   Linear regression   0.864      6.611      5.460 |
+  2. | education    npregress kernel   0.950      4.015      0.923 |
+  3. | education   NNS connect xy o2   0.924      4.939      3.210 |
+  4. | education   NNS connect xy o3   0.927      4.828      3.283 |
+  5. | education    NNS median xy o3   0.938      4.460      2.350 |
+  6. | education       NNS OLS xy o3   0.949      4.027      0.784 |
+     |-------------------------------------------------------------|
+  7. |     water   Linear regression   0.772      5.439      5.070 |
+  8. |     water    npregress kernel   0.958      2.329      0.349 |
+  9. |     water   NNS connect xy o2   0.947      2.621      1.141 |
+ 10. |     water   NNS connect xy o3   0.929      3.041      1.979 |
+ 11. |     water    NNS median xy o3   0.944      2.700      1.589 |
+ 12. |     water       NNS OLS xy o3   0.959      2.320      0.378 |
+     |-------------------------------------------------------------|
+ 13. | clustered   Linear regression   0.037      9.457      9.267 |
+ 14. | clustered    npregress kernel   0.972      1.615      1.031 |
+ 15. | clustered   NNS connect xy o3   0.958      1.981      1.574 |
+ 16. | clustered       NNS OLS xy o3   0.983      1.239      0.590 |
+ 17. | clustered       NNS OLS xy o4   0.988      1.071      0.465 |
+ 18. | clustered       NNS OLS xy o5   0.989      1.025      0.561 |
+     +-------------------------------------------------------------+
+
+. 
+. di "All tests, comparisons, sensitivity checks, and figures completed success
+> fully."
+All tests, comparisons, sensitivity checks, and figures completed successfully.
+
+. 
+end of do-file

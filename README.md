@@ -120,6 +120,9 @@ The current package is univariate. The `method(ols)` standard errors condition o
 
 When prediction is the main goal, compare `nnsreg` against `npregress kernel`, splines, and simpler baselines using a common validation metric. A future machine-learning version would be most useful if it adds validation-based tuning, multivariate partitioning, and uncertainty summaries.
 
+## Citation
+Booth, Eric A. “Reportable Segment Slopes for Nonlinear Relationships in Stata (nnsreg)”. MetaArXiv, pre-print (Under Review at Stata Journal)  osf.io/preprints/metaarxiv/dftr7_v1.
+
 ## Author
 
 Eric A. Booth  

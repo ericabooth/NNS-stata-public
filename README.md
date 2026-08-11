@@ -30,6 +30,8 @@ which nnsreg
 help nnsreg
 ```
 
+<img width="695" height="511" alt="Screenshot 2026-08-10 at 6 44 23 PM" src="https://github.com/user-attachments/assets/02281231-cdea-4f66-b7ee-ebfb7a80f1e5" />
+
 ## Syntax
 
 ```stata

@@ -19,7 +19,7 @@ This makes `nnsreg` useful when the analyst needs more than a smooth curve: for 
 From Stata:
 
 ```stata
-net install nnsreg, from("https://raw.githubusercontent.com/ericbooth/NNS-stata-public/main/github") replace
+net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
 ```
 
 For local development from this folder:
@@ -29,6 +29,8 @@ adopath + "code"
 which nnsreg
 help nnsreg
 ```
+
+<img width="695" height="511" alt="Screenshot 2026-08-10 at 6 44 23 PM" src="https://github.com/user-attachments/assets/02281231-cdea-4f66-b7ee-ebfb7a80f1e5" />
 
 ## Syntax
 
@@ -119,6 +121,9 @@ The first coefficient is the first segment slope. Knot coefficients are changes 
 The current package is univariate. The `method(ols)` standard errors condition on knots selected from the same data. The `method(connect)` intervals are heuristic references based on a rescaled OLS covariance matrix, not estimator-specific tests. A bend in the fitted line is descriptive unless paired with a research design that supports a causal claim. Empty or thinly supported ranges should be treated as prompts for inspection, not as local evidence.
 
 When prediction is the main goal, compare `nnsreg` against `npregress kernel`, splines, and simpler baselines using a common validation metric. A future machine-learning version would be most useful if it adds validation-based tuning, multivariate partitioning, and uncertainty summaries.
+
+## Citation
+Booth, Eric A. “Reportable Segment Slopes for Nonlinear Relationships in Stata (nnsreg)”. MetaArXiv, pre-print (Under Review at Stata Journal)  osf.io/preprints/metaarxiv/dftr7_v1.
 
 ## Author
 

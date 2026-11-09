@@ -1,8 +1,11 @@
 v 3
 d nnsreg: Nonlinear Nonparametric Statistics regression for Stata
 d Author: Eric A. Booth, Texas 2036
-d Distribution-Date: 20260718
+d Distribution-Date: 20261109
 f nnsreg.ado
 f nnsreg_p.ado
 f nnsreg_estat.ado
 f nnsreg.sthlp
+f texas_education.dta
+f texas_water.dta
+f clustered_peak_dip.dta

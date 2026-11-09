@@ -20,7 +20,10 @@ From Stata:
 
 ```stata
 net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
+net get nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
 ```
+
+`net get` copies the three example datasets used in the help file (`texas_education.dta`, `texas_water.dta`, `clustered_peak_dip.dta`) into the current folder.
 
 For local development from this folder:
 
@@ -37,7 +40,7 @@ help nnsreg
 ```stata
 nnsreg depvar indepvar [if] [in] [, order(integer) noise(mean|median) ///
     method(connect|ols) partition(xy|xonly) minobs(integer) level(cilevel) ///
-    vce(robust|cluster clustvar) slopes noplot knotlines graph_opts(string) ///
+    vce(robust|cluster clustvar) slopes noplot knotlines tx2036style graph_opts(string) ///
     generate(newvar)]
 ```
 
@@ -54,6 +57,7 @@ Key options:
 - `vce(robust|cluster clustvar)` requests robust or cluster-robust standard errors for the least-squares stage (`method(ols)` only).
 - `slopes` reports per-segment slopes with delta-method standard errors (also stored in `e(segments)`).
 - `knotlines` overlays the interior knots on the default plot.
+- `tx2036style` draws the default plot in the Texas 2036 house colors. It is off by default; without it the plot uses the current graph scheme's colors.
 - `generate(newvar)` stores fitted values for the estimation sample.
 
 ## Example Workflow
@@ -115,6 +119,10 @@ The first coefficient is the first segment slope. Knot coefficients are changes 
 - `webpage/`: webdoc2 page and statashiny companion.
 - `github/`: `net install` files.
 - `literature/`: background literature organized into `core_nns/` and `comparators/`.
+
+## Changes
+
+- 1.3.3 (2026-11-09): `nnsreg` now runs under `set dp comma`. The knots were written with a decimal comma and broke the spline expressions (r(198)); they are now written with `%21.0g` and a period, which also keeps full precision when the regressor has a very small scale. The default plot takes its colors from the graph scheme; the Texas 2036 house colors are opt-in with `tx2036style`. `net get nnsreg` now ships the example datasets, and the help's `predict` example scores the `nnsreg` fit rather than `npregress`.
 
 ## Caveats
 

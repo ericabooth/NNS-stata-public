@@ -704,9 +704,9 @@ keep if mcode == "kernel"
 keep design rep rmse_true
 rename rmse_true rmse_true_kernel
 tempfile kern
-save `kern'
+save `"`kern'"'
 restore
-merge m:1 design rep using `kern', nogenerate
+merge m:1 design rep using `"`kern'"', nogenerate
 gen byte beats_kernel = rmse_true < rmse_true_kernel ///
     if !missing(rmse_true, rmse_true_kernel) & mcode != "kernel"
 

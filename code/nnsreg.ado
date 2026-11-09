@@ -1,6 +1,10 @@
-*! version 1.3.2  18jul2026
+*! version 1.3.3  09nov2026
 *! nnsreg: Nonlinear Nonparametric Statistics using Partial Moments in Stata
 *! Author: Eric A. Booth (Senior Researcher, Texas 2036, eric.a.booth@gmail.com)
+*! 1.3.3: knots are written with %21.0g and a period decimal point, so
+*!        nnsreg runs under -set dp comma- and keeps full knot precision on
+*!        any scale of x; the default graph takes its colors from the graph
+*!        scheme, and the Texas 2036 house colors are opt-in (tx2036style).
 *! 1.3.2: label connect-fit covariance/model metadata as heuristic/connect;
 *!        remove inherited regress postestimation flags that nnsreg does not
 *!        support; reject unsupported estat/margins calls cleanly; refresh
@@ -36,6 +40,7 @@ program define nnsreg, eclass
         SLOPes ///
         NOPlot ///
         KNOTLines ///
+        tx2036style ///
         graph_opts(string) ///
         GENerate(name) ]
 
@@ -350,23 +355,32 @@ program define nnsreg, eclass
         tempvar fitted
         quietly predict double `fitted' if `touse'
 
-        // Texas 2036 Brand Colors:
-        // Navy: "27 45 85" (RGB for #1B2D55)
-        // Orange: "212 69 0" (RGB for #D44500)
-        // Muted Gray: "108 122 141" (RGB for #6C7A8D)
-        // Light Background: "245 247 250" (RGB for #F5F7FA)
+        // Colors come from the current graph scheme.  The opt-in
+        // tx2036style option applies the Texas 2036 house colors:
+        // muted gray "108 122 141" markers and knot lines, an orange
+        // "212 69 0" fit line, and a light "245 247 250" background.
+        local mcol ""
+        local lcol ""
+        local kcol "lcolor(gs8)"
+        local bgopt ""
+        if "`tx2036style'" != "" {
+            local mcol `"mcolor("108 122 141")"'
+            local lcol `"lcolor("212 69 0")"'
+            local kcol `"lcolor("108 122 141")"'
+            local bgopt `"graphregion(color("245 247 250"))"'
+        }
 
         // Optional vertical lines at the interior knots.
         local knotopt ""
         if "`knotlines'" != "" & `num_knots' > 0 {
-            local knotopt xline(`knots', lcolor("108 122 141") lpattern(shortdash) lwidth(vthin))
+            local knotopt xline(`knots', `kcol' lpattern(shortdash) lwidth(vthin))
         }
 
         twoway ///
             (scatter `depvar' `indepvar' if `touse', ///
-                mcolor("108 122 141") msymbol(Oh) msize(small)) ///
+                `mcol' msymbol(Oh) msize(small)) ///
             (line `fitted' `indepvar' if `touse', sort ///
-                lcolor("212 69 0") lwidth(medthick)), ///
+                `lcol' lwidth(medthick)), ///
             `knotopt' ///
             title("NNS regression fit, order `order'", size(medsmall)) ///
             subtitle("method(`method'), partition(`partition'), noise(`noise')", size(small)) ///
@@ -374,7 +388,7 @@ program define nnsreg, eclass
             xlabel(, labsize(small)) ylabel(, labsize(small) angle(horizontal)) ///
             legend(label(1 "Observed") label(2 "NNS fit") ring(0) position(11) ///
                 rows(2) size(small) region(lcolor(none))) ///
-            graphregion(color("245 247 250")) `graph_opts'
+            `bgopt' `graph_opts'
     }
 end
 
@@ -766,7 +780,11 @@ void nns_reg_mata(string scalar depvar, string scalar indepvar, string scalar to
         knots = sorted_x[2..M+1]
         knots_str = ""
         for (i = 1; i <= M; i++) {
-            knots_str = knots_str + " " + sprintf("%20.15f", knots[i])
+            // %21.0g keeps full precision at any scale of x; sprintf()
+            // follows -set dp-, so turn a decimal comma back into a
+            // period before the knots go into gen expressions
+            knots_str = knots_str + " " +
+                subinstr(strtrim(sprintf("%21.0g", knots[i])), ",", ".")
         }
         st_local(knots_name, strtrim(knots_str))
         st_matrix(knotmat_name, knots)

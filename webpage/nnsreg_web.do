@@ -3,8 +3,15 @@ clear all
 set more off
 set scheme s1color
 
-local root "/Users/ericbooth/Library/CloudStorage/GoogleDrive-eric.booth@texas2036.org/My Drive/NNS-stata-public"
-cd "`root'"
+// Run from the repository root, or set the global nns_root to it first.
+local root `"$nns_root"'
+if `"`root'"' == "" local root `"`c(pwd)'"'
+mata: st_local("hascode", strofreal(direxists(st_local("root") + "/code")))
+if !`hascode' {
+    display as error `"no code/ folder under `root'; run from the repository root or set global nns_root"'
+    exit 601
+}
+cd `"`root'"'
 adopath + "code"
 
 cap mkdir "webpage/assets"

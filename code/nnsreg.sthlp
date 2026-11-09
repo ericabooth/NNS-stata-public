@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.3.2  18jul2026}{...}
+{* *! version 1.3.3  09nov2026}{...}
 {vieweralsosee "[R] regress" "help regress"}{...}
 {vieweralsosee "[R] npregress kernel" "help npregress kernel"}{...}
 {vieweralsosee "[R] lpoly" "help lpoly"}{...}
@@ -24,7 +24,7 @@
 {p 8 17 2}
 {cmd:nnsreg}
 {depvar}
-{indepvar}
+{it:indepvar}
 {ifin}
 [{cmd:,} {it:options}]
 
@@ -46,6 +46,7 @@
 {syntab:Plot}
 {synopt:{opt nop:lot}}suppress the default scatter-and-fit graph{p_end}
 {synopt:{opt knotl:ines}}overlay vertical lines at the interior knots on the default graph{p_end}
+{synopt:{opt tx2036style}}draw the default graph in the Texas 2036 house colors{p_end}
 {synopt:{opt graph_opts(string)}}pass additional {help twoway} graph options{p_end}
 
 {syntab:Generate}
@@ -123,6 +124,12 @@ This design supports {helpb estimates store}, {helpb estimates table}, {helpb pr
 {opt knotlines} overlays vertical dashed lines at the interior knot locations on the default graph.
 
 {phang}
+{opt tx2036style} draws the default graph in the Texas 2036 house colors
+(gray markers, an orange fit line, and a light gray background).  This is an
+internal Texas 2036 style and is off by default; without it the graph takes
+its colors from the current graph scheme.  The option must be typed in full.
+
+{phang}
 {opt graph_opts(string)} passes standard {help twoway} options to the default graph.
 
 {dlgtab:Generate}
@@ -134,7 +141,9 @@ This design supports {helpb estimates store}, {helpb estimates table}, {helpb pr
 {title:Examples}
 
 {pstd}The examples use the simulated datasets distributed with the package
-(created by {cmd:simulated_data.do} with fixed seeds).{p_end}
+(created by {cmd:simulated_data.do} with fixed seeds).  {cmd:net get nnsreg}
+copies {cmd:texas_education.dta}, {cmd:texas_water.dta}, and
+{cmd:clustered_peak_dip.dta} into the current folder.{p_end}
 
 {pstd}Education example: fit NNS connect and NNS OLS, then compare{p_end}
 {phang2}{stata "use texas_education, clear" : . use texas_education, clear}{p_end}
@@ -162,16 +171,20 @@ recipe, read from {cmd:e(segments)}){p_end}
 {phang2}{stata "nnsreg staar_pass spend_pupil, order(3) method(ols) partition(xonly) noplot" : . nnsreg staar_pass spend_pupil, order(3) method(ols) partition(xonly) noplot}{p_end}
 {phang2}{stata "nnsreg staar_pass spend_pupil, order(3) minobs(20) noplot" : . nnsreg staar_pass spend_pupil, order(3) minobs(20) noplot}{p_end}
 
+{pstd}Prediction after {cmd:nnsreg} (restore the stored OLS fit first, so
+{cmd:predict} scores the {cmd:nnsreg} model){p_end}
+{phang2}{stata "estimates restore edu_ols" : . estimates restore edu_ols}{p_end}
+{phang2}{stata "predict yhat" : . predict yhat}{p_end}
+{phang2}{stata "predict resid, residuals" : . predict resid, residuals}{p_end}
+
 {pstd}Compare with linear regression and kernel regression{p_end}
 {phang2}{stata "regress staar_pass spend_pupil" : . regress staar_pass spend_pupil}{p_end}
 {phang2}{stata "npregress kernel staar_pass spend_pupil" : . npregress kernel staar_pass spend_pupil}{p_end}
 
-{pstd}Prediction after {cmd:nnsreg}{p_end}
-{phang2}{stata "predict yhat" : . predict yhat}{p_end}
-{phang2}{stata "predict resid, residuals" : . predict resid, residuals}{p_end}
-
-{pstd}Run the full verification, comparison, and Monte Carlo script{p_end}
-{phang2}{stata "do test_nnsreg.do" : . do test_nnsreg.do}{p_end}
+{pstd}The full verification, comparison, and Monte Carlo script,
+{cmd:examples/test_nnsreg.do}, is in the GitHub repository
+({browse "https://github.com/ericabooth/NNS-stata-public"}); it is not part
+of {cmd:net install}.{p_end}
 
 {marker results}{...}
 {title:Stored results}

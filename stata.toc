@@ -1,0 +1,5 @@
+v 3
+d nnsreg: Nonlinear Nonparametric Statistics regression for Stata
+d Author: Eric A. Booth
+d Distribution-Date: 20261114
+p nnsreg Nonlinear Nonparametric Statistics regression

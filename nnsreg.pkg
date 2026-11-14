@@ -1,0 +1,20 @@
+v 3
+d nnsreg: Nonlinear Nonparametric Statistics regression for Stata
+d
+d Univariate NNS regression: partitions the data, computes regression
+d points, and represents the fitted curve as a linear spline with
+d data-driven knots. Includes predict and estat postestimation and the
+d three example datasets used in the help file (copy them to the current
+d folder with net get nnsreg).
+d
+d Author: Eric A. Booth
+d Requires: Stata 16
+d Distribution-Date: 20261114
+d License: MIT
+f code/nnsreg.ado
+f code/nnsreg_p.ado
+f code/nnsreg_estat.ado
+f code/nnsreg.sthlp
+f data/texas_education.dta
+f data/texas_water.dta
+f data/clustered_peak_dip.dta

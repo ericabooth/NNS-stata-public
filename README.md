@@ -19,8 +19,8 @@ This makes `nnsreg` useful when the analyst needs more than a smooth curve: for 
 From Stata:
 
 ```stata
-net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
-net get nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/github") replace
+net install nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/") replace
+net get nnsreg, from("https://raw.githubusercontent.com/ericabooth/NNS-stata-public/main/") replace
 ```
 
 `net get` copies the three example datasets used in the help file (`texas_education.dta`, `texas_water.dta`, `clustered_peak_dip.dta`) into the current folder.
